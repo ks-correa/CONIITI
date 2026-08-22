@@ -49,7 +49,10 @@ function Read-LocalEnv {
         RABBITMQ_EXCHANGE = "coniiti_events"
         JWT_SECRET_KEY = "local-dev-jwt-secret-change-me-32-chars"
         INTERNAL_SERVICE_TOKEN = "local-dev-internal-token"
-        FRONTEND_URL = "http://localhost"
+        ATTENDANCE_SIGNING_KEY = "local-dev-attendance-signing-key-change-me"
+        GRAFANA_ADMIN_USER = "coniiti-admin"
+        GRAFANA_ADMIN_PASSWORD = "local-dev-grafana-password-change-me"
+        FRONTEND_URL = "http://127.0.0.1:8080"
         SMTP_HOST = "smtp.example.local"
         SMTP_PORT = "587"
         SMTP_USER = ""
@@ -57,13 +60,13 @@ function Read-LocalEnv {
         EMAIL_FROM_NAME = "CONIITI"
         GOOGLE_CLIENT_ID = ""
         GOOGLE_CLIENT_SECRET = ""
-        GOOGLE_REDIRECT_URI = "http://localhost/api/auth/oauth/google/callback"
+        GOOGLE_REDIRECT_URI = "http://127.0.0.1:8080/api/auth/oauth/google/callback"
         MICROSOFT_TENANT_ID = "common"
         MICROSOFT_CLIENT_ID = ""
         MICROSOFT_CLIENT_SECRET = ""
-        MICROSOFT_REDIRECT_URI = "http://localhost/api/auth/oauth/microsoft/callback"
+        MICROSOFT_REDIRECT_URI = "http://127.0.0.1:8080/api/auth/oauth/microsoft/callback"
         PAYMENT_PROVIDER_MODE = "mock"
-        PUBLIC_APP_URL = "http://localhost"
+        PUBLIC_APP_URL = "http://127.0.0.1:8080"
         PAYPAL_CLIENT_ID = ""
         PAYPAL_CLIENT_SECRET = ""
         MP_ACCESS_TOKEN = ""
@@ -179,6 +182,7 @@ function Build-LocalImages {
         @{ Tag = "payments-service:latest"; Path = "./microservices/payments-service" },
         @{ Tag = "analytics-service:latest"; Path = "./microservices/analytics-service" },
         @{ Tag = "files-service:latest"; Path = "./microservices/files-service" },
+        @{ Tag = "raffles-service:latest"; Path = "./microservices/raffles-service" },
         @{ Tag = "frontend-app:latest"; Path = "./Front-end" }
     )
 
@@ -228,6 +232,7 @@ function New-KubernetesSecrets {
         "DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/authdb",
         "JWT_SECRET_KEY=$env:JWT_SECRET_KEY",
         "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
+        "FRONTEND_URL=$env:FRONTEND_URL",
         "RABBITMQ_PASS=$rabbitPass",
         "SMTP_HOST=$env:SMTP_HOST",
         "SMTP_PORT=$env:SMTP_PORT",
@@ -252,17 +257,21 @@ function New-KubernetesSecrets {
     Recreate-Secret "agenda-service-secret" @(
         "DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/agenda_db",
         "JWT_SECRET_KEY=$env:JWT_SECRET_KEY",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
+        "ATTENDANCE_SIGNING_KEY=$env:ATTENDANCE_SIGNING_KEY",
         "RABBITMQ_PASS=$rabbitPass"
     )
 
     Recreate-Secret "notifications-service-secret" @(
         "DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/notificationsdb",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
         "RABBITMQ_PASS=$rabbitPass"
     )
 
     Recreate-Secret "payments-service-secret" @(
         "PAYMENTS_DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/paymentsdb",
         "JWT_SECRET_KEY=$env:JWT_SECRET_KEY",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
         "PAYMENT_PROVIDER_MODE=$env:PAYMENT_PROVIDER_MODE",
         "PUBLIC_APP_URL=$env:PUBLIC_APP_URL",
         "PAYPAL_CLIENT_ID=$env:PAYPAL_CLIENT_ID",
@@ -271,13 +280,52 @@ function New-KubernetesSecrets {
     )
 
     Recreate-Secret "files-service-secret" @(
-        "JWT_SECRET_KEY=$env:JWT_SECRET_KEY"
+        "FILES_DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/filesdb",
+        "JWT_SECRET_KEY=$env:JWT_SECRET_KEY",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN"
     )
 
     Recreate-Secret "analytics-service-secret" @(
         "MONGO_URI=mongodb://$mongoUser`:$mongoPassword@analytics-mongo-service:27017/$mongoDb`?authSource=admin",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
         "RABBITMQ_PASS=$rabbitPass"
     )
+
+    Recreate-Secret "raffles-service-secret" @(
+        "DATABASE_URL=postgresql://$postgresUser`:$postgresPassword@shared-postgres-service:5432/rafflesdb",
+        "JWT_SECRET_KEY=$env:JWT_SECRET_KEY",
+        "INTERNAL_SERVICE_TOKEN=$env:INTERNAL_SERVICE_TOKEN",
+        "RABBITMQ_PASS=$rabbitPass"
+    )
+
+    Recreate-Secret "grafana-admin-secret" @(
+        "admin-user=$env:GRAFANA_ADMIN_USER",
+        "admin-password=$env:GRAFANA_ADMIN_PASSWORD"
+    )
+}
+
+function Ensure-PostgresDatabases {
+    $postgresUser = $env:POSTGRES_USER
+    $databaseNames = @(
+        "usersdb", "authdb", "agenda_db", "notificationsdb",
+        "paymentsdb", "filesdb", "rafflesdb"
+    )
+
+    foreach ($databaseName in $databaseNames) {
+        $query = "SELECT 1 FROM pg_database WHERE datname='$databaseName'"
+        $exists = Invoke-Kubectl @(
+            "exec", "deployment/shared-postgres", "--",
+            "psql", "-U", $postgresUser, "-d", "default_db", "-tAc", $query
+        )
+        $existsValue = ($exists | Out-String).Trim()
+        if ($existsValue -ne "1") {
+            Write-Step "Creando base PostgreSQL faltante: $databaseName"
+            Invoke-Kubectl @(
+                "exec", "deployment/shared-postgres", "--",
+                "createdb", "-U", $postgresUser, $databaseName
+            )
+        }
+    }
 }
 
 function Deploy-LocalCluster {
@@ -296,11 +344,13 @@ function Deploy-LocalCluster {
 
     Write-Step "Esperando infraestructura"
     Invoke-Kubectl @("rollout", "status", "deployment/shared-postgres", "--timeout=180s")
+    Ensure-PostgresDatabases
     Invoke-Kubectl @("rollout", "status", "deployment/analytics-mongo", "--timeout=180s")
     Invoke-Kubectl @("rollout", "status", "deployment/rabbitmq", "--timeout=180s")
 
-    Write-Step "Aplicando microservicios e ingress"
+    Write-Step "Aplicando microservicios, observabilidad e ingress"
     Invoke-Kubectl @("apply", "-f", (Join-Path $Root "Kubernetes/microservicios/"))
+    Invoke-Kubectl @("apply", "-f", (Join-Path $Root "Kubernetes/observabilidad/"))
     Invoke-Kubectl @("apply", "-f", (Join-Path $Root "Kubernetes/ingress/"))
 }
 
@@ -324,8 +374,12 @@ function Show-LocalStatus {
         "payments-service",
         "analytics-service",
         "files-service",
+        "raffles-service",
         "frontend-app",
-        "traefik"
+        "traefik",
+        "alertmanager",
+        "prometheus",
+        "grafana"
     )
 
     foreach ($deployment in $deployments) {
@@ -335,27 +389,40 @@ function Show-LocalStatus {
 
 function Open-LocalApp {
     Require-ClusterReady
+    Read-LocalEnv
 
     Write-Step "Exponiendo Traefik en localhost"
 
+    try {
+        $frontendUri = [Uri]$env:FRONTEND_URL
+    } catch {
+        throw "FRONTEND_URL debe ser una URL local valida para el port-forward de Minikube."
+    }
+
+    if (
+        $frontendUri.Scheme -ne "http" -or
+        $frontendUri.Host -notin @("127.0.0.1", "localhost") -or
+        $frontendUri.Port -lt 1 -or
+        $frontendUri.Port -gt 65535
+    ) {
+        throw "FRONTEND_URL debe usar http://127.0.0.1:<puerto> o http://localhost:<puerto> en Minikube local."
+    }
+
+    $port = $frontendUri.Port
+
     $state = Get-ActivePortForward
     if ($state) {
+        if ($state.Port -ne $port) {
+            throw "Hay un port-forward en $($state.Port), pero FRONTEND_URL usa $port. Ejecuta stop-forward y vuelve a abrir."
+        }
         Write-Host "Port-forward activo en PID $($state.ProcessId)."
         Write-Host "Frontend: http://127.0.0.1:$($state.Port)"
         Write-Host "Estado:   http://127.0.0.1:$($state.Port)/estado"
         return
     }
 
-    $port = $null
-    foreach ($candidate in 8080..8089) {
-        if (-not (Test-LocalPortInUse $candidate)) {
-            $port = $candidate
-            break
-        }
-    }
-
-    if (-not $port) {
-        throw "No hay puertos libres entre 8080 y 8089 para exponer Traefik."
+    if (Test-LocalPortInUse $port) {
+        throw "El puerto $port definido por FRONTEND_URL esta ocupado. Liberalo o configura el mismo puerto en FRONTEND_URL, PUBLIC_APP_URL y los callbacks OAuth."
     }
 
     $command = "kubectl --request-timeout=10s port-forward --address 127.0.0.1 svc/traefik-service ${port}:80 *> `"$PortForwardLogFile`""
@@ -382,6 +449,7 @@ function Clean-LocalCluster {
 
     Write-Step "Eliminando recursos CONIITI del cluster local"
     Invoke-Kubectl @("delete", "-f", (Join-Path $Root "Kubernetes/ingress/"), "--ignore-not-found", "--wait=false")
+    Invoke-Kubectl @("delete", "-f", (Join-Path $Root "Kubernetes/observabilidad/"), "--ignore-not-found", "--wait=false")
     Invoke-Kubectl @("delete", "-f", (Join-Path $Root "Kubernetes/microservicios/"), "--ignore-not-found", "--wait=false")
     Invoke-Kubectl @("delete", "-f", (Join-Path $Root "Kubernetes/mensajeria/"), "--ignore-not-found", "--wait=false")
     Invoke-Kubectl @("delete", "-f", (Join-Path $Root "Kubernetes/base-datos/"), "--ignore-not-found", "--wait=false")
@@ -390,7 +458,7 @@ function Clean-LocalCluster {
 function Remove-LegacyResources {
     Require-ClusterReady
 
-    Write-Step "Eliminando recursos heredados del despliegue anterior"
+    Write-Step "Retirando workloads heredados; los PVC legacy se conservan para recuperación"
 
     $legacyDeployments = @(
         "agenda-db-deployment",
@@ -418,18 +486,6 @@ function Remove-LegacyResources {
         Invoke-Kubectl @("delete", "service", $service, "--ignore-not-found", "--wait=false") | Out-Null
     }
 
-    $legacyPvcs = @(
-        "agenda-db-pvc",
-        "auth-db-pvc",
-        "users-db-pvc",
-        "notifications-db-pvc",
-        "payments-db-pvc",
-        "analytics-mongo-pvc"
-    )
-
-    foreach ($pvc in $legacyPvcs) {
-        Invoke-Kubectl @("delete", "pvc", $pvc, "--ignore-not-found", "--wait=false") | Out-Null
-    }
 }
 
 function Reset-LocalCluster {
@@ -450,7 +506,6 @@ switch ($Action) {
     "reset" { Reset-LocalCluster }
     "all" {
         Start-LocalMinikube
-        Reset-LocalCluster
         Build-LocalImages
         Deploy-LocalCluster
         Show-LocalStatus

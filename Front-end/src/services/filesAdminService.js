@@ -38,8 +38,12 @@ export async function uploadAsset(file) {
     return response.json();
 }
 
-export async function listAssets(limit = 50) {
-    const query = new URLSearchParams({ limit: String(limit) });
+export async function listAssets(options = 50) {
+    const normalized = typeof options === 'number' ? { limit: options } : options;
+    const query = new URLSearchParams();
+    Object.entries({ limit: 50, offset: 0, ...normalized }).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+    });
     return apiFetch(`/assets?${query.toString()}`);
 }
 

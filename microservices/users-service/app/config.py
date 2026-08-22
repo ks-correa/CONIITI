@@ -16,6 +16,11 @@ class Settings:
     JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
     AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8000")
     INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "coniiti-internal-token")
+    AUTH_INTROSPECTION_ENABLED = os.getenv("AUTH_INTROSPECTION_ENABLED", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
 
 
 settings = Settings()

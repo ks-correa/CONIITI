@@ -1,0 +1,304 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager:9093"]
+    scrape_configs:
+      - job_name: auth-service
+        static_configs: [{ targets: ["auth-service:80"] }]
+      - job_name: users-service
+        static_configs: [{ targets: ["users-service:80"] }]
+      - job_name: agenda-service
+        static_configs: [{ targets: ["agenda-service:80"] }]
+      - job_name: files-service
+        static_configs: [{ targets: ["files-service:80"] }]
+      - job_name: payments-service
+        static_configs: [{ targets: ["payments-service:80"] }]
+      - job_name: notifications-service
+        static_configs: [{ targets: ["notifications-service:80"] }]
+      - job_name: analytics-service
+        static_configs: [{ targets: ["analytics-service:80"] }]
+      - job_name: raffles-service
+        static_configs: [{ targets: ["raffles-service:80"] }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+data:
+  coniiti-alerts.yml: |
+    groups:
+      - name: coniiti-service-health
+        rules:
+          - alert: ConiitiServiceDown
+            expr: up{job=~".*-service"} == 0
+            for: 2m
+            labels: { severity: critical }
+            annotations:
+              summary: "Servicio CONIITI no disponible"
+          - alert: ConiitiHighErrorRate
+            expr: sum by (job) (rate(http_requests_total{status=~"5.."}[5m])) / clamp_min(sum by (job) (rate(http_requests_total[5m])), 0.001) > 0.05
+            for: 5m
+            labels: { severity: warning }
+            annotations:
+              summary: "Tasa elevada de errores en {{ $labels.job }}"
+          - alert: ConiitiHighP95Latency
+            expr: histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m]))) > 2
+            for: 10m
+            labels: { severity: warning }
+            annotations:
+              summary: "Latencia p95 alta en {{ $labels.job }}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: coniiti-operations
+      group_by: [alertname, job]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+      - name: coniiti-operations
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: alertmanager-data-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  labels: { app: alertmanager }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: alertmanager }
+  template:
+    metadata:
+      labels: { app: alertmanager }
+    spec:
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.27.0
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+            - --data.retention=120h
+          ports:
+            - { name: http, containerPort: 9093 }
+          resources:
+            requests: { memory: 32Mi, cpu: 20m }
+            limits: { memory: 96Mi, cpu: 150m }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9093 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: 9093 }
+            initialDelaySeconds: 15
+          volumeMounts:
+            - { name: config, mountPath: /etc/alertmanager }
+            - { name: data, mountPath: /alertmanager }
+      volumes:
+        - name: config
+          configMap: { name: alertmanager-config }
+        - name: data
+          persistentVolumeClaim: { claimName: alertmanager-data-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+spec:
+  type: ClusterIP
+  selector: { app: alertmanager }
+  ports:
+    - { name: http, port: 9093, targetPort: 9093 }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 4Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  labels: { app: prometheus }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prometheus }
+  template:
+    metadata:
+      labels: { app: prometheus }
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v2.51.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=15d
+          ports:
+            - { name: http, containerPort: 9090 }
+          resources:
+            requests: { memory: 192Mi, cpu: 75m }
+            limits: { memory: 512Mi, cpu: 500m }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: 9090 }
+            initialDelaySeconds: 15
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus }
+            - { name: rules, mountPath: /etc/prometheus/rules }
+            - { name: data, mountPath: /prometheus }
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+        - name: rules
+          configMap: { name: prometheus-rules }
+        - name: data
+          persistentVolumeClaim: { claimName: prometheus-data-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  type: ClusterIP
+  selector: { app: prometheus }
+  ports:
+    - { name: http, port: 9090, targetPort: 9090 }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: Prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+  dashboard.yml: |
+    apiVersion: 1
+    providers:
+      - name: CONIITI
+        orgId: 1
+        folder: CONIITI
+        type: file
+        disableDeletion: true
+        options:
+          path: /var/lib/grafana/dashboards
+  coniiti.json: |
+    {
+      "title": "Telemetría CONIITI",
+      "uid": "coniiti-overview",
+      "schemaVersion": 39,
+      "refresh": "15s",
+      "panels": [
+        {"id":1,"type":"stat","title":"Servicios disponibles","gridPos":{"x":0,"y":0,"w":8,"h":6},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"sum(up{job=~\".*-service\"})"}]},
+        {"id":2,"type":"timeseries","title":"Solicitudes por servicio","gridPos":{"x":8,"y":0,"w":16,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"sum by (job) (rate(http_requests_total[5m]))","legendFormat":"{{job}}"}]},
+        {"id":3,"type":"timeseries","title":"Errores 5xx","gridPos":{"x":0,"y":8,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"sum by (job) (rate(http_requests_total{status=~\"5..\"}[5m]))","legendFormat":"{{job}}"}]},
+        {"id":4,"type":"timeseries","title":"Latencia p95","gridPos":{"x":12,"y":8,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.95, sum by (le, job) (rate(http_request_duration_seconds_bucket[5m])) )","legendFormat":"{{job}}"}]},
+        {"id":5,"type":"timeseries","title":"Tráfico de integración","gridPos":{"x":0,"y":16,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"sum(rate(http_requests_total{handler=~\"/site-config.*|/assets.*|/content/cards.*|/venues.*|/.*attendance.*|/groups.*|/admin/profiles.*\"}[5m])) by (job, handler, status) or sum(rate(http_requests_total{job=\"raffles-service\"}[5m])) by (job, handler, status)","legendFormat":"{{job}} {{handler}} HTTP {{status}}"}]},
+        {"id":6,"type":"timeseries","title":"Latencia p95 de integración","gridPos":{"x":12,"y":16,"w":12,"h":8},"datasource":{"type":"prometheus","uid":"Prometheus"},"targets":[{"refId":"A","expr":"histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=~\"/site-config.*|/assets.*|/content/cards.*|/venues.*|/.*attendance.*|/groups.*|/admin/profiles.*\"}[5m])) by (le, job, handler)) or histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"raffles-service\"}[5m])) by (le, job, handler))","legendFormat":"{{job}} {{handler}}"}]}
+      ]
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  labels: { app: grafana }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.4.1
+          ports:
+            - { name: http, containerPort: 3000 }
+          env:
+            - { name: GF_USERS_ALLOW_SIGN_UP, value: "false" }
+            - { name: GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION, value: "false" }
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef: { name: grafana-admin-secret, key: admin-user }
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: grafana-admin-secret, key: admin-password }
+          resources:
+            requests: { memory: 96Mi, cpu: 50m }
+            limits: { memory: 256Mi, cpu: 300m }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 10
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/grafana }
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/datasources/datasource.yml, subPath: datasource.yml }
+            - { name: provisioning, mountPath: /etc/grafana/provisioning/dashboards/dashboard.yml, subPath: dashboard.yml }
+            - { name: provisioning, mountPath: /var/lib/grafana/dashboards/coniiti.json, subPath: coniiti.json }
+      volumes:
+        - name: data
+          persistentVolumeClaim: { claimName: grafana-data-pvc }
+        - name: provisioning
+          configMap: { name: grafana-provisioning }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  type: ClusterIP
+  selector: { app: grafana }
+  ports:
+    - { name: http, port: 3000, targetPort: 3000 }

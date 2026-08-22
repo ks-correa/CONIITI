@@ -121,6 +121,10 @@
     box-sizing: border-box;
 }
 
+.fieldGroup small { color: var(--color-text-muted, #64748b); }
+.formError { grid-column: 1 / -1; margin: 0 0 1rem; padding: 0.75rem; border-radius: 8px; background: #fef2f2; color: #991b1b; }
+.saveBtn:disabled { opacity: 0.55; cursor: wait; transform: none; }
+
 .fieldGroup input:focus,
 .fieldGroup select:focus,
 .fieldGroup textarea:focus {

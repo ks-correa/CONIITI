@@ -4,12 +4,13 @@ import logging
 import time
 import uuid
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import database, events_collection
 from app.messaging.consumer import start_consumer
+from app.security import AuthenticatedUser, require_superuser
 
 
 app = FastAPI(title="Analytics Service", version="1.0.0")
@@ -68,6 +69,12 @@ async def structured_access_log(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup_event():
+    await events_collection.create_index(
+        "event_id",
+        name="uq_analytics_event_id",
+        unique=True,
+        partialFilterExpression={"event_id": {"$type": "string"}},
+    )
     asyncio.create_task(start_consumer())
 
 
@@ -86,7 +93,7 @@ def root():
 
 
 @app.get("/stats")
-async def get_stats():
+async def get_stats(_: AuthenticatedUser = Depends(require_superuser)):
     total_events = await events_collection.count_documents({})
     pipeline = [{"$group": {"_id": "$event", "count": {"$sum": 1}}}]
     cursor = events_collection.aggregate(pipeline)

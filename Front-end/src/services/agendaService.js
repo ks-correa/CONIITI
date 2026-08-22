@@ -1,209 +1,225 @@
-// ============================================================
-// Servicio de Agenda — CONIITI Front-end
-// Capa de acceso a datos para las sesiones del congreso.
-// Consume la API REST de agenda-service a traves del gateway.
-// Mantiene la misma firma de funciones anterior para no
-// romper los hooks y componentes existentes.
-// ============================================================
-
 import { getApiBase, getJsonHeaders } from './apiConfig';
+
 
 const API_BASE = getApiBase();
 
-/**
- * Realiza una solicitud al API con manejo de errores centralizado.
- *
- * @param {string} path - Ruta relativa del endpoint
- * @param {RequestInit} options - Opciones del fetch
- * @returns {Promise<any>}
- */
-async function apiFetch(path, options = {}) {
+
+async function apiResponse(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         credentials: 'include',
         headers: getJsonHeaders(options),
     });
-
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail ?? 'No pudimos cargar la información. Inténtalo nuevamente.');
+        const error = new Error(errorData.detail ?? 'No pudimos completar la operación.');
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
     }
+    return response;
+}
 
+
+async function apiFetch(path, options = {}) {
+    const response = await apiResponse(path, options);
     if (response.status === 204) return null;
-
     return response.json();
 }
 
-/**
- * Construye la query string a partir de un objeto de filtros,
- * omitiendo los valores null, undefined o cadenas vacías.
- *
- * @param {object} filters
- * @returns {string}
- */
-function buildQueryString(filters) {
+
+function buildQueryString(filters = {}) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
         if (value !== null && value !== undefined && value !== '') {
             params.append(key, value);
         }
     });
-    const qs = params.toString();
-    return qs ? `?${qs}` : '';
+    const query = params.toString();
+    return query ? `?${query}` : '';
 }
 
 
-// =============================================================
-// Sección: Consultas de sesiones (públicas)
-// =============================================================
-
-/**
- * Retorna todas las sesiones sin filtros.
- *
- * @returns {Promise<Array>}
- */
 export async function getSessions() {
     const data = await apiFetch('/agenda');
     return data.sessions ?? [];
 }
 
 
-/**
- * Filtra sesiones por día, modalidad, tipo de evento y búsqueda de texto.
- *
- * @param {{ day?: string, modality?: string, eventType?: string, search?: string }} filters
- * @returns {Promise<Array>}
- */
-export async function filterSessions({ day, modality, eventType, room, search } = {}) {
-    const qs = buildQueryString({
+export async function filterSessions({ day, modality, eventType, room, venueId, search } = {}) {
+    const query = buildQueryString({
         day,
         modality,
         event_type: eventType,
-        salon: room,
+        salon: venueId ? undefined : room,
+        venue_id: venueId,
         search,
     });
-    const data = await apiFetch(`/agenda${qs}`);
+    const data = await apiFetch(`/agenda${query}`);
     return data.sessions ?? [];
 }
 
-/**
- * Obtiene el detalle de una sesión por su ID.
- *
- * @param {string} sessionId - UUID de la sesión
- * @returns {Promise<object>}
- */
-export async function getSessionById(sessionId) {
+
+export function getSessionById(sessionId) {
     return apiFetch(`/agenda/${sessionId}`);
 }
 
-/**
- * Retorna los días del congreso (dato de configuración, no de BD).
- * El congreso CONIITI 2026 se celebra los días 1, 2 y 3 de octubre.
- *
- * @returns {Array<{ value: string, label: string }>}
- */
-export function getConferenceDays() {
-    return [
-        { value: '2026-10-01', label: 'Oct 1' },
-        { value: '2026-10-02', label: 'Oct 2' },
-        { value: '2026-10-03', label: 'Oct 3' },
-    ];
+
+export async function getAgendaConfiguration() {
+    const response = await apiResponse('/agenda/config');
+    const data = await response.json();
+    return { ...data, etag: response.headers.get('ETag') };
 }
 
 
-// =============================================================
-// Sección: Preinscripciones (Mis Conferencias - Usuarios)
-// =============================================================
-
-export async function getRegisteredSessions() {
-    return apiFetch('/agenda/me/registered');    
-}
-
-export async function toggleRegistration(sessionId) {
-    return apiFetch(`/agenda/${sessionId}/register`, {
-        method: 'POST',
-    });
-}
-
-
-// =============================================================
-// Sección: CRUD de sesiones (staff y superusuario)
-// =============================================================
-
-/**
- * Crea una nueva sesión de agenda.
- *
- * @param {object} data - Datos de la sesión (ver SessionCreate en el back-end)
- * @returns {Promise<object>}
- */
-export async function createSession(data) {
-    return apiFetch('/agenda', {
-        method: 'POST',
-        body: JSON.stringify(data),
-    });
-}
-
-/**
- * Actualiza los datos de una sesión existente.
- *
- * @param {string} sessionId - UUID de la sesión
- * @param {object} data - Campos a actualizar
- * @returns {Promise<object>}
- */
-export async function updateSession(sessionId, data) {
-    return apiFetch(`/agenda/${sessionId}`, {
+export async function updateAgendaConfiguration(configuration, etag) {
+    const response = await apiResponse('/agenda/config', {
         method: 'PUT',
-        body: JSON.stringify(data),
+        headers: { 'If-Match': etag },
+        body: JSON.stringify(configuration),
     });
+    const data = await response.json();
+    return { ...data, etag: response.headers.get('ETag') };
 }
 
-/**
- * Elimina permanentemente una sesión.
- *
- * @param {string} sessionId - UUID de la sesión
- */
-export async function deleteSession(sessionId) {
-    return apiFetch(`/agenda/${sessionId}`, {
-        method: 'DELETE',
-    });
-}
 
-/**
- * Alterna el estado de verificación del enlace virtual de una sesión.
- *
- * @param {string} sessionId - UUID de la sesión
- * @returns {Promise<object>}
- */
-export async function toggleLinkVerified(sessionId) {
-    return apiFetch(`/agenda/${sessionId}/verify-link`, {
-        method: 'PATCH',
+export async function getConferenceDays() {
+    const configuration = await getAgendaConfiguration();
+    return configuration.conference_days.map((value, index) => {
+        const [year, month, day] = value.split('-').map(Number);
+        return {
+            value,
+            label: new Intl.DateTimeFormat('es-CO', {
+                month: 'short', day: 'numeric', timeZone: 'UTC',
+            }).format(new Date(Date.UTC(year, month - 1, day, 12))),
+            ordinal: index + 1,
+        };
     });
 }
 
 
-// =============================================================
-// Sección: Ponentes (compatibilidad con SpeakerModal)
-// =============================================================
+export function getRegisteredSessions() {
+    return apiFetch('/agenda/me/registered');
+}
 
-/**
- * Busca un ponente por su ID.
- * NOTA: En esta versión, el modelo de ponentes aún no
- * tiene su propia tabla en el back-end. Se retorna null.
- *
- * @returns {null}
- */
+
+export function toggleRegistration(sessionId) {
+    return apiFetch(`/agenda/${sessionId}/register`, { method: 'POST' });
+}
+
+
+export function createSession(data) {
+    return apiFetch('/agenda', { method: 'POST', body: JSON.stringify(data) });
+}
+
+
+export function updateSession(sessionId, data) {
+    return apiFetch(`/agenda/${sessionId}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+
+export function deleteSession(sessionId) {
+    return apiFetch(`/agenda/${sessionId}`, { method: 'DELETE' });
+}
+
+
+export function toggleLinkVerified(sessionId) {
+    return apiFetch(`/agenda/${sessionId}/verify-link`, { method: 'PATCH' });
+}
+
+
+export async function getVenues({ manage = false } = {}) {
+    const data = await apiFetch(`/agenda/venues${manage ? '/manage' : ''}`);
+    return data.venues ?? [];
+}
+
+
+export function getVenue(venueId) {
+    return apiFetch(`/agenda/venues/${venueId}`);
+}
+
+
+export function createVenue(data) {
+    return apiFetch('/agenda/venues', { method: 'POST', body: JSON.stringify(data) });
+}
+
+
+export function updateVenue(venueId, data) {
+    return apiFetch(`/agenda/venues/${venueId}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+
+export function deleteVenue(venueId) {
+    return apiFetch(`/agenda/venues/${venueId}`, { method: 'DELETE' });
+}
+
+
+export function createVenueResource(venueId, data) {
+    return apiFetch(`/agenda/venues/${venueId}/resources`, {
+        method: 'POST', body: JSON.stringify(data),
+    });
+}
+
+
+export function updateVenueResource(venueId, resourceId, data) {
+    return apiFetch(`/agenda/venues/${venueId}/resources/${resourceId}`, {
+        method: 'PATCH', body: JSON.stringify(data),
+    });
+}
+
+
+export function deleteVenueResource(venueId, resourceId) {
+    return apiFetch(`/agenda/venues/${venueId}/resources/${resourceId}`, { method: 'DELETE' });
+}
+
+
+export function issueAttendanceToken(sessionId, options = {}) {
+    return apiFetch(`/agenda/${sessionId}/attendance-token`, {
+        method: 'POST', body: JSON.stringify(options),
+    });
+}
+
+
+export function confirmAttendance(sessionId, token) {
+    return apiFetch(`/agenda/${sessionId}/attendance/check-in`, {
+        method: 'POST', body: JSON.stringify({ token }),
+    });
+}
+
+
+export async function getSessionAttendance(sessionId, { includeRevoked = false } = {}) {
+    const data = await apiFetch(`/agenda/${sessionId}/attendance${buildQueryString({ include_revoked: includeRevoked })}`);
+    return data.items ?? [];
+}
+
+
+export async function getMyAttendance() {
+    const data = await apiFetch('/agenda/me/attendance');
+    return data.items ?? [];
+}
+
+
+export function confirmManualAttendance(sessionId, userId, reason) {
+    return apiFetch(`/agenda/${sessionId}/attendance/manual`, {
+        method: 'POST', body: JSON.stringify({ user_id: userId, reason }),
+    });
+}
+
+
+export function revokeAttendance(sessionId, attendanceId, reason) {
+    return apiFetch(`/agenda/${sessionId}/attendance/${attendanceId}/revoke`, {
+        method: 'PATCH', body: JSON.stringify({ reason }),
+    });
+}
+
+
 export function getSpeakerById() {
     return null;
 }
 
-/**
- * Verifica si un timestamp está dentro del rango de "cambio reciente".
- *
- * @param {string} timestampISO - Timestamp en formato ISO 8601
- * @param {number} withinMinutes - Minutos de margen (por defecto 30)
- * @returns {boolean}
- */
+
 export function isRecentChange(timestampISO, withinMinutes = 30) {
-    const diff = Date.now() - new Date(timestampISO).getTime();
-    return diff <= withinMinutes * 60 * 1000;
+    if (!timestampISO) return false;
+    const timestamp = new Date(timestampISO).getTime();
+    return Number.isFinite(timestamp) && Date.now() - timestamp <= withinMinutes * 60 * 1000;
 }

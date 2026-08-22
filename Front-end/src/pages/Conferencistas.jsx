@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import SpeakerCard from '../components/SpeakerCard';
+import { useEventTheme } from '../context/EventThemeContext';
 import { getApiBase } from '../services/apiConfig';
 import pageStyles from '../styles/pages/DynamicPage.module.css';
 import styles from '../styles/pages/Conferencistas.module.css';
@@ -13,6 +14,7 @@ const FILTERS = [
 ];
 
 export default function Conferencistas() {
+    const { siteConfig, isModuleVisible } = useEventTheme();
     const [speakers, setSpeakers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('todos');
@@ -46,12 +48,16 @@ export default function Conferencistas() {
         };
     }, [filter]);
 
+    if (!isModuleVisible('speakers')) {
+        return <div className={pageStyles.page}><div className={pageStyles.container}><div className={pageStyles.empty}><h1>Conferencistas no disponible</h1><p>Este módulo está oculto temporalmente.</p></div></div></div>;
+    }
+
     return (
         <div className={pageStyles.page}>
             <div className={pageStyles.hero}>
                 <div className={pageStyles.heroContent}>
-                    <h1>Conferencistas principales</h1>
-                    <p>Conoce a los conferencistas invitados de honor del XI Congreso CONIITI.</p>
+                    <h1>{siteConfig.pages.speakers.title}</h1>
+                    <p>{siteConfig.pages.speakers.subtitle}</p>
                 </div>
             </div>
 
@@ -80,7 +86,10 @@ export default function Conferencistas() {
                 {!loading && speakers.length > 0 && (
                     <div className={styles.grid}>
                         {speakers.map((speaker, index) => (
-                            <SpeakerCard key={speaker.ponente + index} speaker={speaker} />
+                            <SpeakerCard
+                                key={speaker.ponente + index}
+                                speaker={siteConfig.pages.speakers.show_organization ? speaker : { ...speaker, afiliacion: null }}
+                            />
                         ))}
                     </div>
                 )}

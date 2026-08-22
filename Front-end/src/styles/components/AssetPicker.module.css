@@ -1,0 +1,27 @@
+.picker { display: grid; gap: 1rem; }
+.heading, .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.heading h3, .heading p { margin: 0; }
+.heading p { color: #64748b; font-size: .86rem; margin-top: .25rem; }
+.uploadButton { display: inline-flex; align-items: center; gap: .45rem; padding: .7rem 1rem; border-radius: 8px; background: var(--color-primary, #0d2b4e); color: #fff; cursor: pointer; font-weight: 700; }
+.uploadButton input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.toolbar { justify-content: flex-start; padding: .75rem; border-radius: 10px; background: #f8fafc; }
+.search { display: flex; align-items: center; gap: .45rem; flex: 1; min-width: 220px; }
+.search input, .toolbar select { width: 100%; padding: .65rem .75rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.toolbar select { width: auto; min-width: 150px; }
+.toolbar button { display: grid; place-items: center; padding: .65rem; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; color: #334155; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: .9rem; }
+.card { overflow: hidden; border: 1px solid #dbe3ec; border-radius: 10px; background: #fff; transition: border-color .15s, box-shadow .15s; }
+.selected { border: 2px solid var(--color-primary, #0d2b4e); box-shadow: 0 0 0 3px rgba(13,43,78,.12); }
+.selectButton { display: grid; width: 100%; padding: 0; text-align: left; background: transparent; }
+.preview { height: 128px; overflow: hidden; background: #eef2f7; }
+.preview img { width: 100%; height: 100%; object-fit: cover; }
+.placeholder { height: 100%; display: grid; place-content: center; justify-items: center; gap: .4rem; color: #64748b; font-size: 1.6rem; }
+.placeholder span { font-size: .78rem; }
+.selectButton strong { padding: .7rem .7rem .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #1e293b; }
+.selectButton > span { padding: 0 .7rem .7rem; color: #64748b; font-size: .72rem; overflow-wrap: anywhere; }
+.cardActions { display: flex; justify-content: space-between; gap: .5rem; padding: .55rem .7rem; border-top: 1px solid #eef2f7; }
+.cardActions a, .cardActions button { color: #315f91; font-size: .76rem; background: none; text-decoration: none; }
+.cardActions button { display: inline-flex; align-items: center; gap: .25rem; color: #b91c1c; }
+.empty { padding: 2rem; text-align: center; border: 1px dashed #cbd5e1; border-radius: 10px; color: #64748b; }
+.error { padding: .75rem; border-radius: 8px; background: #fee2e2; color: #991b1b; }
+@media (max-width: 620px) { .heading, .toolbar { align-items: stretch; flex-direction: column; } .toolbar select { width: 100%; } }

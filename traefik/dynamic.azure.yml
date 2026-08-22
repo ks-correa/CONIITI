@@ -1,12 +1,20 @@
 http:
   routers:
+    metrics-denied-file:
+      rule: "PathRegexp(`^/api/(auth|users|committees|agenda|notifications|analytics|files|payments|raffles)/metrics/?$`)"
+      entryPoints:
+        - web
+      service: auth-svc
+      middlewares:
+        - hide-public-metrics
+      priority: 1000
+
     auth-file:
       rule: "PathPrefix(`/api/auth`)"
       entryPoints:
         - web
       service: auth-svc
       middlewares:
-        - cors-api
         - strip-auth
       priority: 310
 
@@ -16,7 +24,6 @@ http:
         - web
       service: users-svc
       middlewares:
-        - cors-api
         - strip-users
       priority: 300
 
@@ -35,7 +42,6 @@ http:
         - web
       service: agenda-svc
       middlewares:
-        - cors-api
         - strip-agenda
       priority: 290
 
@@ -45,7 +51,6 @@ http:
         - web
       service: notifications-svc
       middlewares:
-        - cors-api
         - strip-notifications
       priority: 280
 
@@ -55,7 +60,6 @@ http:
         - web
       service: analytics-svc
       middlewares:
-        - cors-api
         - strip-analytics
       priority: 270
 
@@ -65,7 +69,6 @@ http:
         - web
       service: files-svc
       middlewares:
-        - cors-api
         - strip-files
       priority: 260
 
@@ -75,9 +78,17 @@ http:
         - web
       service: payments-svc
       middlewares:
-        - cors-api
         - strip-payments
       priority: 250
+
+    raffles-file:
+      rule: "PathPrefix(`/api/raffles`)"
+      entryPoints:
+        - web
+      service: raffles-svc
+      middlewares:
+        - strip-raffles
+      priority: 240
 
     frontend-file:
       rule: "PathPrefix(`/`)"
@@ -87,22 +98,12 @@ http:
       priority: 1
 
   middlewares:
-    cors-api:
-      headers:
-        accessControlAllowCredentials: true
-        accessControlAllowHeaders:
-          - "*"
-        accessControlAllowMethods:
-          - GET
-          - POST
-          - PUT
-          - PATCH
-          - DELETE
-          - OPTIONS
-        accessControlAllowOriginList:
-          - "*" 
-        accessControlMaxAge: 600
-        addVaryHeader: true
+    # Azure sirve frontend y API bajo el mismo origen; no se emiten cabeceras
+    # CORS wildcard incompatibles con cookies. Un origen cruzado futuro debe
+    # declararse de forma exacta, nunca como `*` con credenciales.
+    hide-public-metrics:
+      replacePath:
+        path: /__metrics_not_public__
 
     strip-auth:
       stripPrefix:
@@ -143,6 +144,11 @@ http:
       stripPrefix:
         prefixes:
           - /api/payments
+
+    strip-raffles:
+      stripPrefix:
+        prefixes:
+          - /api/raffles
 
   services:
     auth-svc:
@@ -186,6 +192,12 @@ http:
         passHostHeader: false
         servers:
           - url: "http://payments-service"
+
+    raffles-svc:
+      loadBalancer:
+        passHostHeader: false
+        servers:
+          - url: "http://raffles-service"
 
     frontend-svc:
       loadBalancer:

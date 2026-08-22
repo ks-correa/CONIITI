@@ -277,6 +277,23 @@
     color: var(--color-text-muted);
 }
 
+.venueButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid rgba(31, 105, 182, 0.22);
+    border-radius: 9px;
+    background: rgba(31, 105, 182, 0.06);
+    color: var(--color-primary);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.venueButton:hover { background: rgba(31, 105, 182, 0.12); }
+
 /* ── Link del ponente ── */
 .speakerLink {
     background: none;

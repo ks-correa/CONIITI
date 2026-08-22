@@ -15,7 +15,7 @@ from app.schemas.auth import (
     InternalUserUpdateRequest,
     RegisterRequest,
 )
-from app.utils.jwt import create_access_token, hash_password, verify_password
+from app.utils.jwt import create_access_token, decode_access_token, hash_password, verify_password
 
 
 def get_user_by_email(email: str, db: Session) -> AuthUser | None:
@@ -77,6 +77,7 @@ def create_access_token_for_user(
             "email": user.email,
             "full_name": full_name,
             "role": role,
+            "sv": user.session_version,
         }
     )
 
@@ -137,6 +138,8 @@ def update_internal_user(user_id: str, payload: InternalUserUpdateRequest, db: S
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
 
+    must_revoke = False
+
     if payload.email and payload.email != user.email:
         existing = get_user_by_email(payload.email, db)
         if existing and existing.id != user.id:
@@ -145,15 +148,21 @@ def update_internal_user(user_id: str, payload: InternalUserUpdateRequest, db: S
                 detail="Ya existe una cuenta registrada con ese correo.",
             )
         user.email = payload.email
+        must_revoke = True
 
     if payload.full_name:
         user.full_name = payload.full_name
 
     if payload.password:
         user.password_hash = hash_password(payload.password)
+        must_revoke = True
 
-    if payload.is_active is not None:
+    if payload.is_active is not None and payload.is_active != user.is_active:
         user.is_active = payload.is_active
+        must_revoke = True
+
+    if must_revoke:
+        user.session_version += 1
 
     db.commit()
     db.refresh(user)
@@ -235,6 +244,7 @@ def reset_password(token: str, new_password: str, db: Session) -> AuthUser:
         )
 
     user.password_hash = hash_password(new_password)
+    user.session_version += 1
     reset_token.used = True
     db.query(PasswordResetToken).filter(
         PasswordResetToken.user_id == user.id,
@@ -243,3 +253,61 @@ def reset_password(token: str, new_password: str, db: Session) -> AuthUser:
     db.commit()
     db.refresh(user)
     return user
+
+
+def revoke_sessions(
+    user_id: str,
+    db: Session,
+    *,
+    is_active: bool | None = None,
+) -> AuthUser:
+    """Invalidate every access token issued before this transaction."""
+    user = get_user_by_id(user_id, db)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado.")
+
+    if is_active is not None:
+        user.is_active = is_active
+    user.session_version += 1
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def introspect_access_token(token: str, db: Session) -> dict:
+    """Validate signature, expiry, account state and session version.
+
+    Role ownership remains in users-service.  Auth only returns the role claim
+    after proving that the claim belongs to the latest valid session version.
+    """
+    try:
+        payload = decode_access_token(token)
+    except HTTPException:
+        return {"active": False}
+
+    user_id = payload.get("sub")
+    token_version = payload.get("sv")
+    role = payload.get("role")
+    if not user_id or token_version is None or not role:
+        return {"active": False}
+
+    user = get_user_by_id(str(user_id), db)
+    if not user or not user.is_active:
+        return {"active": False}
+
+    try:
+        version_matches = int(token_version) == user.session_version
+    except (TypeError, ValueError):
+        version_matches = False
+    if not version_matches:
+        return {"active": False}
+
+    return {
+        "active": True,
+        "user_id": user.id,
+        "email": user.email,
+        "full_name": payload.get("full_name") or user.full_name,
+        "role": role,
+        "session_version": user.session_version,
+        "expires_at": payload.get("exp"),
+    }

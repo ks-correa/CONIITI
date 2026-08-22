@@ -84,3 +84,124 @@ export async function deleteStaff(userId) {
         method: 'DELETE',
     });
 }
+
+
+// =============================================================
+// Perfil propio y administracion global de perfiles
+// =============================================================
+
+export async function getOwnProfile() {
+    return apiFetch('/users/me');
+}
+
+export async function updateOwnProfile(data) {
+    return apiFetch('/users/me', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function listProfiles({ search = '', role = '', isActive = '', page = 1, pageSize = 25 } = {}) {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    if (role) params.set('role', role);
+    if (isActive !== '') params.set('is_active', String(isActive));
+    return apiFetch(`/users/admin/profiles?${params.toString()}`);
+}
+
+export async function updateProfileAsAdmin(userId, data) {
+    return apiFetch(`/users/admin/profiles/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
+
+// =============================================================
+// Grupos y membresias
+// =============================================================
+
+export async function listGroups({ search = '', page = 1, pageSize = 50 } = {}) {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    return apiFetch(`/users/groups?${params.toString()}`);
+}
+
+export async function listMyGroups() {
+    return apiFetch('/users/me/groups');
+}
+
+export async function getGroup(groupId) {
+    return apiFetch(`/users/groups/${groupId}`);
+}
+
+export async function createGroup(data) {
+    return apiFetch('/users/groups', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function updateGroup(groupId, data) {
+    return apiFetch(`/users/groups/${groupId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function deactivateGroup(groupId) {
+    return apiFetch(`/users/groups/${groupId}`, { method: 'DELETE' });
+}
+
+export async function listGroupMembers(groupId) {
+    return apiFetch(`/users/groups/${groupId}/members`);
+}
+
+export async function addGroupMember(groupId, data) {
+    return apiFetch(`/users/groups/${groupId}/members`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function updateGroupMember(groupId, userId, data) {
+    return apiFetch(`/users/groups/${groupId}/members/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function removeGroupMember(groupId, userId) {
+    return apiFetch(`/users/groups/${groupId}/members/${userId}`, { method: 'DELETE' });
+}
+
+export async function listGroupAudit(groupId, limit = 100) {
+    return apiFetch(`/users/groups/${groupId}/audit?limit=${limit}`);
+}
+
+
+// =============================================================
+// Comite (backend autoritativo; no cards CMS duplicadas)
+// =============================================================
+
+export async function listCommitteeMembers(activeOnly = false) {
+    return apiFetch(`/committees/members?active_only=${String(activeOnly)}`);
+}
+
+export async function createCommitteeMember(data) {
+    return apiFetch('/committees/members', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function updateCommitteeMember(memberId, data) {
+    return apiFetch(`/committees/members/${memberId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+}
+
+export async function deleteCommitteeMember(memberId) {
+    return apiFetch(`/committees/members/${memberId}`, { method: 'DELETE' });
+}

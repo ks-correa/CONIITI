@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: raffles-service-config
+data:
+  AGENDA_SERVICE_URL: "http://agenda-service"
+  USERS_SERVICE_URL: "http://users-service"
+  AUTH_SERVICE_URL: "http://auth-service"
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_USER: "user"
+  RABBITMQ_EXCHANGE: "coniiti_events"
+  # Consumer-first: activar después de verificar las colas v2 y sus DLQ.
+  PREMIO_ADJUDICADO_ENABLED: "false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: raffles-service
+  labels:
+    app: raffles-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: raffles-service
+  template:
+    metadata:
+      labels:
+        app: raffles-service
+    spec:
+      containers:
+      - name: raffles-service
+        image: raffles-service:latest
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+        resources:
+          requests:
+            memory: "72Mi"
+            cpu: "40m"
+          limits:
+            memory: "192Mi"
+            cpu: "250m"
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: raffles-service-config
+        - secretRef:
+            name: raffles-service-secret
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 8
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: raffles-service
+spec:
+  type: ClusterIP
+  selector:
+    app: raffles-service
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000

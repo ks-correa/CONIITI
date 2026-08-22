@@ -9,12 +9,15 @@ import {
     FiUsers,
     FiAlertTriangle,
     FiLogIn,
+    FiPlayCircle,
 } from 'react-icons/fi';
 import { useContext, useState } from 'react';
 
 import { AuthContext } from '../context/AuthContext';
 import StatusBadge from './StatusBadge';
 import VirtualGatekeeper from './VirtualGatekeeper';
+import VenueMediaModal from './VenueMediaModal';
+import AttendanceScanner from './AttendanceScanner';
 import styles from '../styles/components/SessionCard.module.css';
 
 const TRACK_CLASS = {
@@ -54,6 +57,9 @@ export default function SessionCard({
 }) {
     const { user } = useContext(AuthContext);
     const [showAuthHint, setShowAuthHint] = useState(false);
+    const [showVenue, setShowVenue] = useState(false);
+    const [showAttendance, setShowAttendance] = useState(false);
+    const [attendanceConfirmed, setAttendanceConfirmed] = useState(false);
 
     const {
         titulo,
@@ -70,15 +76,19 @@ export default function SessionCard({
         link_verificado,
         link_virtual,
         timestamp_actualizacion,
+        updated_at,
+        created_at,
+        venue,
         descripcion,
         cupos_totales = 0,
     } = session;
     const inscritosActuales = session.inscritos || 0;
 
-    const lastUpdated = new Date(timestamp_actualizacion).toLocaleTimeString(
-        'es-CO',
-        { hour: '2-digit', minute: '2-digit' },
-    );
+    const updatedValue = updated_at || timestamp_actualizacion || created_at;
+    const updatedDate = updatedValue ? new Date(updatedValue) : null;
+    const lastUpdated = updatedDate && Number.isFinite(updatedDate.getTime())
+        ? updatedDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+        : 'sin cambios';
 
     const { disponibles, pct, estado } = cuposInfo(cupos_totales, inscritosActuales);
     const agotado = estado === 'lleno';
@@ -175,7 +185,7 @@ export default function SessionCard({
                             <div className={styles.metaLabel}>Ponente</div>
                             <button
                                 className={styles.speakerLink}
-                                onClick={() => onSpeakerClick(session)}
+                                onClick={() => onSpeakerClick?.(session)}
                                 title="Ver perfil del ponente"
                             >
                                 {ponente}
@@ -205,12 +215,23 @@ export default function SessionCard({
                         Actualizado: {lastUpdated}
                     </span>
                 </div>
+
+                {venue && (venue.description || venue.resources?.length > 0) && (
+                    <button type="button" className={styles.venueButton} onClick={() => setShowVenue(true)}>
+                        <FiPlayCircle /> Conocer la sede
+                    </button>
+                )}
             </div>
 
             {mode === 'mis-conferencias' ? (
                 <div className={styles.myConfActions}>
-                    <button className={`${styles.actionBtn} ${styles.validateBtn}`}>
-                        <FiCheckCircle /> Validar asistencia
+                    <button
+                        type="button"
+                        className={`${styles.actionBtn} ${styles.validateBtn}`}
+                        onClick={() => setShowAttendance(true)}
+                        disabled={attendanceConfirmed}
+                    >
+                        <FiCheckCircle /> {attendanceConfirmed ? 'Asistencia confirmada' : 'Validar asistencia'}
                     </button>
                     <button
                         className={styles.cancelBtn}
@@ -240,6 +261,15 @@ export default function SessionCard({
                                 ? <><FiCheckCircle /> Preinscrito</>
                                 : <><FiCalendar /> Preinscribirse</>}
                 </button>
+            )}
+
+            {showVenue && <VenueMediaModal venue={venue} onClose={() => setShowVenue(false)} />}
+            {showAttendance && (
+                <AttendanceScanner
+                    session={session}
+                    onClose={() => setShowAttendance(false)}
+                    onConfirmed={() => setAttendanceConfirmed(true)}
+                />
             )}
         </article>
     );

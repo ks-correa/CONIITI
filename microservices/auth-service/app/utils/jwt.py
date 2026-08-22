@@ -144,7 +144,13 @@ def get_current_user(
 
     user = db.query(AuthUser).filter(AuthUser.id == user_id).first()
 
-    if not user or not user.is_active:
+    token_session_version = payload.get("sv")
+    try:
+        session_is_current = int(token_session_version) == user.session_version if user else False
+    except (TypeError, ValueError):
+        session_is_current = False
+
+    if not user or not user.is_active or not session_is_current:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario no valido o inactivo.",

@@ -9,6 +9,7 @@ import {
     FiSend,
 } from 'react-icons/fi';
 
+import { useEventTheme } from '../context/EventThemeContext';
 import styles from '../styles/pages/DynamicPage.module.css';
 
 const contactCards = [
@@ -40,18 +41,25 @@ const quickQuestions = [
 ];
 
 export default function Contactos() {
+    const { siteConfig, isModuleVisible } = useEventTheme();
+    const contact = siteConfig.pages.contact;
+    const configuredCards = [
+        { ...contactCards[0], text: contact.address },
+        { ...contactCards[1], text: contact.email, link: `mailto:${contact.email}` },
+        { ...contactCards[2], text: contact.phone },
+    ];
+    if (!isModuleVisible('contact')) {
+        return <div className={styles.page}><div className={styles.container}><div className={styles.empty}><h1>Contacto no disponible</h1><p>Este módulo está oculto temporalmente.</p></div></div></div>;
+    }
     return (
         <div className={styles.page}>
             <section className={`${styles.hero} ${styles.heroSplit}`}>
                 <div className={styles.heroContent}>
                     <span className={styles.eyebrow}>Canales oficiales</span>
-                    <h1>Contacto</h1>
-                    <p>
-                        Estamos disponibles para orientar tus consultas sobre inscripciones, agenda,
-                        participación académica y soporte general del congreso.
-                    </p>
+                    <h1>{contact.title}</h1>
+                    <p>{contact.message}</p>
                 </div>
-                <a className={styles.heroAction} href="mailto:coniiti@ucatolica.edu.co">
+                <a className={styles.heroAction} href={`mailto:${contact.email}`}>
                     <FiSend />
                     Enviar correo
                 </a>
@@ -60,7 +68,7 @@ export default function Contactos() {
             <div className={styles.container}>
                 <section className={styles.contactLayout}>
                     <div className={styles.contactCards}>
-                        {contactCards.map((card) => (
+                        {configuredCards.map((card) => (
                             <article className={styles.contactCard} key={card.title}>
                                 <div className={styles.iconWrapper}>{card.icon}</div>
                                 <div>
@@ -84,7 +92,7 @@ export default function Contactos() {
                         </div>
                         <div className={styles.mapFooter}>
                             <FiMapPin />
-                            <span>Bogotá, carrera 13 # 47 - 30</span>
+                            <span>{contact.address}</span>
                         </div>
                     </aside>
                 </section>
@@ -100,7 +108,7 @@ export default function Contactos() {
                             proceso de participación. Las respuestas se atienden por los canales oficiales
                             de la universidad y del congreso.
                         </p>
-                        <a className={styles.primaryButton} href="mailto:coniiti@ucatolica.edu.co">
+                        <a className={styles.primaryButton} href={`mailto:${contact.email}`}>
                             <FiMail />
                             Enviar correo
                         </a>

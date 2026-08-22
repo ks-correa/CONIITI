@@ -23,12 +23,13 @@ describe('Pagina de estado', () => {
       expect(screen.getByText(/servicios disponibles/i)).toBeInTheDocument();
     });
 
-    expect(fetch).toHaveBeenCalledTimes(7);
+    expect(fetch).toHaveBeenCalledTimes(8);
     expect(screen.getByText('Auth')).toBeInTheDocument();
     expect(screen.getByText('/auth/health')).toBeInTheDocument();
     expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(screen.getByText('Sorteos')).toBeInTheDocument();
     expect(screen.getByText(/latencia promedio/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/verificado/i)).toHaveLength(7);
+    expect(screen.getAllByText(/verificado/i)).toHaveLength(8);
   });
 
   it('muestra servicios no disponibles cuando falla la API de estado', async () => {

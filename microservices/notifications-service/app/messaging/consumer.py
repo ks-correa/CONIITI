@@ -94,7 +94,25 @@ def consume_forever() -> None:
                 exchange_type="topic",
                 durable=True,
             )
-            channel.queue_declare(queue=settings.RABBITMQ_QUEUE, durable=True)
+            channel.exchange_declare(
+                exchange=settings.RABBITMQ_DLX,
+                exchange_type="topic",
+                durable=True,
+            )
+            channel.queue_declare(queue=settings.RABBITMQ_DLQ, durable=True)
+            channel.queue_bind(
+                exchange=settings.RABBITMQ_DLX,
+                queue=settings.RABBITMQ_DLQ,
+                routing_key="notifications.rejected",
+            )
+            channel.queue_declare(
+                queue=settings.RABBITMQ_QUEUE,
+                durable=True,
+                arguments={
+                    "x-dead-letter-exchange": settings.RABBITMQ_DLX,
+                    "x-dead-letter-routing-key": "notifications.rejected",
+                },
+            )
             channel.queue_bind(
                 exchange=settings.RABBITMQ_EXCHANGE,
                 queue=settings.RABBITMQ_QUEUE,

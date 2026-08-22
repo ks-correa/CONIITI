@@ -32,6 +32,28 @@ vi.mock('../../hooks/usePolling', () => ({
   usePolling: vi.fn(),
 }));
 
+vi.mock('../../context/EventThemeContext', () => ({
+  useEventTheme: () => ({
+    theme: {
+      editionLabel: 'CONIITI 2026',
+      country: 'Italia',
+      colors: ['#009246', '#ffffff', '#ce2b37'],
+      siteAccentsEnabled: true,
+      agendaParticlesEnabled: false,
+    },
+    siteConfig: {
+      pages: {
+        agenda: {
+          title: 'Agenda',
+          subtitle: 'Programación oficial',
+          show_filters: true,
+          columns: 3,
+        },
+      },
+    },
+  }),
+}));
+
 vi.mock('../../components/LiveFilter', () => ({
   default: () => <div>Filtros de agenda</div>,
 }));

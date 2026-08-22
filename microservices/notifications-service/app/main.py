@@ -12,6 +12,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.messaging.consumer import start_consumer
 from .database import Base, SessionLocal, engine, get_db
 from .models import NotificationEvent
+from .security import AuthenticatedUser, require_superuser
 
 
 DATABASE_READY_ATTEMPTS = 15
@@ -92,7 +93,11 @@ def health_check():
 
 
 @app.get("/events")
-def list_events(limit: int = 25, db: Session = Depends(get_db)):
+def list_events(
+    limit: int = 25,
+    db: Session = Depends(get_db),
+    _: AuthenticatedUser = Depends(require_superuser),
+):
     records = (
         db.query(NotificationEvent)
         .order_by(NotificationEvent.processed_at.desc())

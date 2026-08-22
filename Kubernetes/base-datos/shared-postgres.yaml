@@ -20,6 +20,8 @@ data:
     CREATE DATABASE agenda_db;
     CREATE DATABASE notificationsdb;
     CREATE DATABASE paymentsdb;
+    CREATE DATABASE filesdb;
+    CREATE DATABASE rafflesdb;
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -64,6 +66,20 @@ spec:
           mountPath: /var/lib/postgresql/data
         - name: postgres-init
           mountPath: /docker-entrypoint-initdb.d
+        startupProbe:
+          exec:
+            command: ["pg_isready", "-U", "admin", "-d", "default_db"]
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-U", "admin", "-d", "default_db"]
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["pg_isready", "-U", "admin", "-d", "default_db"]
+          periodSeconds: 15
+          failureThreshold: 5
       volumes:
       - name: postgres-data
         persistentVolumeClaim:

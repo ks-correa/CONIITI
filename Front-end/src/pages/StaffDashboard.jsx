@@ -13,12 +13,17 @@ import SessionFormModal from '../components/SessionFormModal';
 import DashboardPanel from '../components/admin/DashboardPanel';
 import DocumentManager from '../components/admin/DocumentManager';
 import FileManager from '../components/admin/FileManager';
+import AgendaConfigurationPanel from '../components/admin/AgendaConfigurationPanel';
+import AttendanceManager from '../components/admin/AttendanceManager';
+import VenueManager from '../components/admin/VenueManager';
 import { useAuth } from '../context/AuthContext';
 import { SESSION_MODALITY, SESSION_STATUS } from '../types/session';
 import styles from '../styles/pages/StaffDashboard.module.css';
 
 const BASE_TABS = [
     { id: 'agenda', label: 'Agenda' },
+    { id: 'venues', label: 'Sedes y videos' },
+    { id: 'attendance', label: 'Asistencia' },
     { id: 'cms', label: 'Contenido del sitio' },
     { id: 'documentos', label: 'Materiales' },
     { id: 'archivos', label: 'Biblioteca' },
@@ -117,7 +122,7 @@ export default function StaffDashboard() {
     };
 
     const tabs = isSuperuser
-        ? [...BASE_TABS, { id: 'dashboard', label: 'Resumen' }]
+        ? [...BASE_TABS, { id: 'calendar', label: 'Calendario oficial' }, { id: 'dashboard', label: 'Resumen' }]
         : BASE_TABS;
 
     return (
@@ -149,6 +154,9 @@ export default function StaffDashboard() {
             {activeTab === 'cms' && <CMSPanel />}
             {activeTab === 'documentos' && <DocumentManager />}
             {activeTab === 'archivos' && <FileManager />}
+            {activeTab === 'venues' && <VenueManager />}
+            {activeTab === 'attendance' && <AttendanceManager initialSessions={sessions} />}
+            {activeTab === 'calendar' && isSuperuser && <AgendaConfigurationPanel />}
             {activeTab === 'dashboard' && isSuperuser && <DashboardPanel />}
 
             {activeTab === 'agenda' && (

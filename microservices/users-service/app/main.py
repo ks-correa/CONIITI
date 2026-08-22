@@ -8,10 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 
-from app.database import Base, engine
+from app.database import engine
 from app.api.users import router
 from app.api.committees import router as committees_router
-from app.models import committee as committee_model  # noqa: F401
+from app.api.groups import me_router as groups_me_router, router as groups_router
+from app.models import CommitteeMember, Group, GroupAuditLog, GroupMembership, User  # noqa: F401
 
 
 DATABASE_READY_ATTEMPTS = 15
@@ -25,7 +26,6 @@ def initialize_database() -> None:
         try:
             with engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
-            Base.metadata.create_all(bind=engine)
             return
         except Exception as exc:
             last_error = exc
@@ -63,6 +63,8 @@ app.add_middleware(
 
 app.include_router(router, tags=["Users"])
 app.include_router(committees_router)
+app.include_router(groups_me_router)
+app.include_router(groups_router)
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 access_logger = logging.getLogger("coniiti.access")

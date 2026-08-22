@@ -6,6 +6,8 @@ from types import SimpleNamespace
 os.environ["PAYMENTS_DATABASE_URL"] = "sqlite://"
 os.environ["JWT_SECRET_KEY"] = "test-secret"
 os.environ["PAYMENT_PROVIDER_MODE"] = "mock"
+os.environ.pop("AUTH_SERVICE_URL", None)
+os.environ.pop("INTERNAL_SERVICE_TOKEN", None)
 
 from fastapi.testclient import TestClient
 from jose import jwt
@@ -17,6 +19,7 @@ from app.api import payments as payments_api
 from app.database import Base, get_db
 from app.main import app
 from app.services.payment_service import PaymentApplicationService
+from app.utils import security
 
 
 engine = create_engine(
@@ -123,3 +126,95 @@ def test_superuser_can_create_checkout_for_another_user():
 
     assert response.status_code == 201
     assert response.json()["user_id"] == str(other_user_id)
+
+
+class _IntrospectionResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
+def test_deployed_security_uses_revocation_aware_introspection(monkeypatch):
+    current_user_id = uuid.uuid4()
+    monkeypatch.setattr(security, "AUTH_SERVICE_URL", "http://auth-service")
+    monkeypatch.setattr(security, "INTERNAL_SERVICE_TOKEN", "internal-test-token")
+    monkeypatch.setattr(
+        security.httpx,
+        "post",
+        lambda *_, **__: _IntrospectionResponse(
+            {
+                "active": True,
+                "user_id": str(current_user_id),
+                "role": "SUPERUSER",
+            }
+        ),
+    )
+
+    response = client.post(
+        "/create-checkout",
+        headers={"Authorization": "Bearer opaque-session-token"},
+        json=payment_payload(uuid.uuid4()),
+    )
+
+    assert response.status_code == 201
+
+
+def test_deployed_security_rejects_revoked_session(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_SERVICE_URL", "http://auth-service")
+    monkeypatch.setattr(security, "INTERNAL_SERVICE_TOKEN", "internal-test-token")
+    monkeypatch.setattr(
+        security.httpx,
+        "post",
+        lambda *_, **__: _IntrospectionResponse({"active": False}),
+    )
+
+    response = client.post(
+        "/create-checkout",
+        headers={"Authorization": "Bearer revoked-session-token"},
+        json=payment_payload(uuid.uuid4()),
+    )
+
+    assert response.status_code == 401
+
+
+def test_deployed_security_fails_closed_for_malformed_introspection(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_SERVICE_URL", "http://auth-service")
+    monkeypatch.setattr(security, "INTERNAL_SERVICE_TOKEN", "internal-test-token")
+    monkeypatch.setattr(
+        security.httpx,
+        "post",
+        lambda *_, **__: _IntrospectionResponse(["invalid-contract"]),
+    )
+
+    response = client.post(
+        "/create-checkout",
+        headers={"Authorization": "Bearer opaque-session-token"},
+        json=payment_payload(uuid.uuid4()),
+    )
+
+    assert response.status_code == 503
+
+
+def test_deployed_security_fails_closed_for_invalid_active_subject(monkeypatch):
+    monkeypatch.setattr(security, "AUTH_SERVICE_URL", "http://auth-service")
+    monkeypatch.setattr(security, "INTERNAL_SERVICE_TOKEN", "internal-test-token")
+    monkeypatch.setattr(
+        security.httpx,
+        "post",
+        lambda *_, **__: _IntrospectionResponse(
+            {"active": True, "user_id": "not-a-uuid", "role": "superuser"}
+        ),
+    )
+
+    response = client.post(
+        "/create-checkout",
+        headers={"Authorization": "Bearer opaque-session-token"},
+        json=payment_payload(uuid.uuid4()),
+    )
+
+    assert response.status_code == 503

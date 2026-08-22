@@ -6,6 +6,10 @@ data:
   RABBITMQ_HOST: "rabbitmq-service"
   RABBITMQ_USER: "user"
   RABBITMQ_EXCHANGE: "coniiti_events"
+  RABBITMQ_QUEUE: "notifications_queue_v2"
+  RABBITMQ_DLX: "coniiti_events_dlx"
+  RABBITMQ_DLQ: "notifications_dead_letter"
+  AUTH_SERVICE_URL: "http://auth-service"
 ---
 apiVersion: apps/v1
 kind: Deployment

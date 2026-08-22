@@ -1,0 +1,13 @@
+.page { width: min(1100px, calc(100% - 2rem)); margin: 2rem auto 4rem; }
+.header { margin-bottom: 1.5rem; }
+.header > span { color: #b3840f; font-size: .75rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.header h1 { margin: .35rem 0; color: #0d2b4e; }
+.header p { color: #64748b; max-width: 760px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 1rem; }
+.card { display: grid; gap: .9rem; padding: 1.15rem; background: #fff; border: 1px solid #dbe5ef; border-radius: 14px; box-shadow: 0 4px 20px rgba(9, 29, 54, .06); }
+.card h2 { margin: 0; color: #0d2b4e; font-size: 1.1rem; }
+.card p { margin: .35rem 0 0; color: #64748b; }
+.role { justify-self: start; padding: .28rem .6rem; border-radius: 999px; background: #e8eef5; color: #173b63; font-size: .75rem; font-weight: 700; }
+.card a { justify-self: start; padding: .58rem .8rem; border-radius: 7px; background: #0d2b4e; color: #fff; text-decoration: none; font-weight: 700; }
+.empty { grid-column: 1 / -1; padding: 2rem; text-align: center; color: #64748b; }
+.error { padding: .75rem 1rem; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; }

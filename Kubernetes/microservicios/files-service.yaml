@@ -7,7 +7,18 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: files-service-config
+data:
+  AUTH_SERVICE_URL: "http://auth-service"
+  FILES_MAX_IMAGE_BYTES: "26214400"
+  FILES_MAX_VIDEO_BYTES: "536870912"
+  FILES_MAX_DOCUMENT_BYTES: "52428800"
+  FILES_IMPORT_LEGACY_JSON: "true"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -29,7 +40,7 @@ spec:
       - name: files-service
         image: files-service:latest
         imagePullPolicy: IfNotPresent
-        command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
         resources:
           requests:
             memory: "48Mi"
@@ -40,6 +51,8 @@ spec:
         ports:
         - containerPort: 8000
         envFrom:
+        - configMapRef:
+            name: files-service-config
         - secretRef:
             name: files-service-secret
         volumeMounts:
@@ -51,6 +64,12 @@ spec:
             port: 8000
           initialDelaySeconds: 15
           periodSeconds: 15
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
         readinessProbe:
           httpGet:
             path: /health

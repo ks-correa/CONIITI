@@ -1,0 +1,23 @@
+.overlay { position: fixed; inset: 0; z-index: 950; display: grid; place-items: center; padding: 1rem; background: rgba(5, 18, 36, 0.78); backdrop-filter: blur(5px); }
+.dialog { width: min(560px, 100%); max-height: 94vh; overflow: auto; border-radius: 16px; background: #fff; box-shadow: 0 25px 70px rgba(0, 0, 0, 0.35); }
+.dialog header { display: flex; justify-content: space-between; gap: 1rem; padding: 1.2rem 1.4rem; border-bottom: 1px solid #e2e8f0; }
+.dialog header span { color: #9a6c00; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+.dialog h2 { margin: 0.25rem 0 0; color: var(--color-primary, #1f69b6); font-size: 1.15rem; }
+.dialog header button { border: 0; border-radius: 8px; width: 40px; height: 40px; background: #eff6ff; color: #174f89; cursor: pointer; }
+.body { padding: 1.3rem 1.4rem; }
+.body > p { color: #475569; line-height: 1.55; }
+.camera { display: none; width: 100%; max-height: 330px; margin: 1rem 0; border-radius: 12px; background: #07182b; object-fit: cover; }
+.cameraVisible { display: block; }
+.cameraButton, .body form button, .success button { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; min-height: 42px; border: 0; border-radius: 9px; padding: 0.7rem 1rem; background: var(--color-primary, #1f69b6); color: #fff; font-weight: 700; cursor: pointer; }
+.divider { display: flex; align-items: center; margin: 1.2rem 0; color: #64748b; font-size: 0.8rem; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #e2e8f0; }
+.divider span { padding: 0 0.7rem; text-align: center; }
+.body form { display: grid; gap: 0.55rem; }
+.body form label { display: flex; align-items: center; gap: 0.4rem; color: #174f89; font-weight: 700; }
+.body textarea { min-height: 88px; resize: vertical; border: 1px solid #cbd5e1; border-radius: 9px; padding: 0.75rem; font: inherit; }
+.body form button:disabled { opacity: 0.55; cursor: wait; }
+.error { padding: 0.75rem; border-radius: 8px; background: #fef2f2; color: #991b1b !important; }
+.success { display: grid; justify-items: center; gap: 0.5rem; padding: 2.5rem 1.5rem; text-align: center; }
+.success > svg { font-size: 3.5rem; color: #15803d; }
+.success h3 { margin: 0.5rem 0 0; color: #166534; }
+.success p { color: #475569; }

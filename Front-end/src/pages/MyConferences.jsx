@@ -18,12 +18,13 @@ export default function MyConferences({ registeredIds = new Set(), onToggleRegis
         activeDay,
         activeModality,
         activeEventType,
-        activeRoom,
+        venues,
+        activeVenueId,
         searchQuery,
         setActiveDay,
         setActiveModality,
         setActiveEventType,
-        setActiveRoom,
+        setActiveVenueId,
         setSearchQuery,
     } = useAgenda();
 
@@ -83,12 +84,13 @@ export default function MyConferences({ registeredIds = new Set(), onToggleRegis
                     activeDay={activeDay}
                     activeModality={activeModality}
                     activeEventType={activeEventType}
-                    activeRoom={activeRoom}
+                    venues={venues}
+                    activeVenueId={activeVenueId}
                     searchQuery={searchQuery}
                     onDayChange={setActiveDay}
                     onModalityChange={setActiveModality}
                     onEventTypeChange={setActiveEventType}
-                    onRoomChange={setActiveRoom}
+                    onVenueChange={setActiveVenueId}
                     onSearchQueryChange={setSearchQuery}
                 />
             </div>

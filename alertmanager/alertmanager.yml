@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: coniiti-operations
+  group_by: [alertname, job]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+# The internal Alertmanager keeps alert state and silences without exposing a
+# public port. Add the organization's approved e-mail/webhook integration to
+# this receiver at deployment time; secrets never belong in this repository.
+receivers:
+  - name: coniiti-operations

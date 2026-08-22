@@ -24,29 +24,39 @@ import styles from '../styles/pages/Home.module.css';
 const API_BASE = getApiBase();
 const SPEAKERS_PER_PAGE = 5;
 
+function zonedDateStart(dateValue, timeZone) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue ?? '');
+    if (!match || !timeZone) return null;
+    const [, year, month, day] = match.map(Number);
+    const requestedWallTime = Date.UTC(year, month - 1, day);
+    let instant = requestedWallTime;
+    try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone,
+            hourCycle: 'h23',
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+            const parts = Object.fromEntries(
+                formatter.formatToParts(new Date(instant))
+                    .filter((part) => part.type !== 'literal')
+                    .map((part) => [part.type, Number(part.value)]),
+            );
+            const observedWallTime = Date.UTC(
+                parts.year, parts.month - 1, parts.day,
+                parts.hour, parts.minute, parts.second,
+            );
+            instant += requestedWallTime - observedWallTime;
+        }
+        return instant;
+    } catch {
+        return null;
+    }
+}
 
-const FALLBACK_SPEAKERS = [
-    {
-        ponente: 'Dr. Alessandro Conti',
-        afiliacion: 'Experto en Inteligencia Artificial, Milán',
-        foto_ponente_url: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=350',
-    },
-    {
-        ponente: 'Dra. Sofia Restrepo',
-        afiliacion: 'CEO Innovatech Latam',
-        foto_ponente_url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=350',
-    },
-    {
-        ponente: 'Ing. Marco Rossi',
-        afiliacion: 'Líder de Infraestructuras Cloud',
-        foto_ponente_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=350',
-    },
-];
-
-const COUNTDOWN_TARGET = new Date('October 1, 2026 00:00:00').getTime();
-
-function calculateTimeLeft(now) {
-    const difference = COUNTDOWN_TARGET - now;
+function calculateTimeLeft(now, target) {
+    const difference = target - now;
 
     if (difference <= 0) return {};
 
@@ -59,11 +69,13 @@ function calculateTimeLeft(now) {
 }
 
 
-function Countdown() {
+function Countdown({ conferenceDay, timeZone, loading }) {
     const [timeLeft, setTimeLeft] = useState(null);
+    const target = zonedDateStart(conferenceDay, timeZone);
 
     useEffect(() => {
-        const updateTimeLeft = () => setTimeLeft(calculateTimeLeft(Date.now()));
+        if (target === null) return undefined;
+        const updateTimeLeft = () => setTimeLeft(calculateTimeLeft(Date.now(), target));
         const initialTimer = setTimeout(updateTimeLeft, 0);
         const intervalId = setInterval(updateTimeLeft, 1000);
 
@@ -71,7 +83,15 @@ function Countdown() {
             clearTimeout(initialTimer);
             clearInterval(intervalId);
         };
-    }, []);
+    }, [target]);
+
+    if (loading) {
+        return <div className={styles.countdownContainer}><h2>Cargando calendario...</h2></div>;
+    }
+
+    if (target === null) {
+        return <div className={styles.countdownContainer}><h2>Fechas por confirmar.</h2></div>;
+    }
 
     if (timeLeft === null) {
         return <div className={styles.countdownContainer}><h2>Cargando contador...</h2></div>;
@@ -201,16 +221,32 @@ function getAccessHighlights(user) {
 
 export default function Home() {
     const { user, isLoading } = useAuth();
-    const { theme } = useEventTheme();
+    const { agendaConfig, agendaConfigLoading, theme, siteConfig, isModuleVisible } = useEventTheme();
     const [keynotes, setKeynotes] = useState([]);
+    const [keynotesLoading, setKeynotesLoading] = useState(true);
+    const [keynotesError, setKeynotesError] = useState('');
     const [checkoutLoadingKey, setCheckoutLoadingKey] = useState('');
     const [checkoutError, setCheckoutError] = useState('');
 
     useEffect(() => {
+        let active = true;
         fetch(`${API_BASE}/agenda/speakers?principal_only=true`)
-            .then((response) => (response.ok ? response.json() : []))
-            .then((data) => setKeynotes(data))
-            .catch(() => setKeynotes([]));
+            .then((response) => {
+                if (!response.ok) throw new Error('No se pudieron consultar los conferencistas.');
+                return response.json();
+            })
+            .then((data) => {
+                if (!active) return;
+                setKeynotes(Array.isArray(data) ? data : []);
+                setKeynotesError('');
+            })
+            .catch((requestError) => {
+                if (!active) return;
+                setKeynotes([]);
+                setKeynotesError(requestError.message);
+            })
+            .finally(() => { if (active) setKeynotesLoading(false); });
+        return () => { active = false; };
     }, []);
 
     const handleCheckout = async (plan, region) => {
@@ -245,26 +281,30 @@ export default function Home() {
         <div className={styles.home}>
             <header className={styles.hero}>
                 <div className={styles.heroBackground}>
-                    <img src="/colosseum_italy_hero.png" alt="Colosseum Background Italy" fetchPriority="high" width="1920" height="1080" />
+                    <img src={siteConfig.branding.hero_url || "/colosseum_italy_hero.png"} alt={siteConfig.event.title} fetchPriority="high" width="1920" height="1080" />
                 </div>
                 <div className={styles.heroOverlay}></div>
                 {theme.siteAccentsEnabled && <div className={styles.guestRibbon} aria-hidden="true" />}
 
                 <div className={styles.heroContent}>
-                    <span className={styles.badge}>{theme.editionLabel}</span>
-                    <h1>XI CONIITI 2026</h1>
+                    {theme.editionLabel && <span className={styles.badge}>{theme.editionLabel}</span>}
+                    <h1>{siteConfig.pages.home.title}</h1>
                     <p>
                         {user
                             ? `Bienvenido${user.full_name ? `, ${user.full_name}` : ''}. Tu sesión ya está activa para participar en CONIITI 2026.`
-                            : 'Congreso Internacional de Innovación y Tendencias en Ingeniería, del 1 al 3 de octubre de 2026.'}
+                            : siteConfig.pages.home.subtitle}
                     </p>
 
-                    <Countdown />
+                    <Countdown
+                        conferenceDay={agendaConfig?.conference_days?.[0]}
+                        timeZone={agendaConfig?.timezone}
+                        loading={agendaConfigLoading}
+                    />
 
                     <div className={styles.heroButtons}>
-                        <Link to="/agenda" className={styles.primaryBtn}>
-                            Ver agenda <FiArrowRight />
-                        </Link>
+                        {isModuleVisible('agenda') && <Link to="/agenda" className={styles.primaryBtn}>
+                            {siteConfig.pages.home.cta_label} <FiArrowRight />
+                        </Link>}
                         {!isLoading && (
                             <Link to={getUserHubPath(user)} className={styles.secondaryBtn}>
                                 {getUserHubLabel(user)}
@@ -348,26 +388,26 @@ export default function Home() {
                 </div>
             </section>
 
-            <section className={styles.sectionBlock}>
+            {isModuleVisible('speakers') && <section className={styles.sectionBlock}>
                 <h2 className={styles.sectionTitle}>Conferencistas Principales</h2>
                 <p className={styles.sectionSubtitle}>Conoce a algunos de los expertos que guiarán las plenarias de innovación.</p>
 
-                {keynotes.length > 0 ? (
+                {keynotesLoading ? (
+                    <p className={styles.sectionSubtitle}>Consultando conferencistas oficiales…</p>
+                ) : keynotesError ? (
+                    <p className={styles.sectionSubtitle} role="status">Información no disponible en este momento. {keynotesError}</p>
+                ) : keynotes.length > 0 ? (
                     <SpeakerSlider speakers={keynotes} />
                 ) : (
-                    <div className={styles.speakersGrid}>
-                        {FALLBACK_SPEAKERS.map((speaker, index) => (
-                            <SpeakerCard key={speaker.ponente + index} speaker={speaker} />
-                        ))}
-                    </div>
+                    <p className={styles.sectionSubtitle}>Aún no hay conferencistas principales publicados.</p>
                 )}
 
                 <div className={styles.centerBtn}>
                     <Link to="/conferencistas" className={styles.primaryBtn}>Conoce a todos los conferencistas</Link>
                 </div>
-            </section>
+            </section>}
 
-            <section id="inscripciones" className={`${styles.sectionBlock} ${styles.blueBg}`}>
+            {isModuleVisible('payments') && <section id="inscripciones" className={`${styles.sectionBlock} ${styles.blueBg}`}>
                 {user ? (
                     <div className={styles.accessContainer}>
                         <h2 className={styles.sectionTitle}>Opciones de pago</h2>
@@ -460,7 +500,7 @@ export default function Home() {
                         </div>
                     </div>
                 )}
-            </section>
+            </section>}
         </div>
     );
 }

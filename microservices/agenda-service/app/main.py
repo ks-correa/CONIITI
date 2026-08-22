@@ -8,8 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text
 
-from app.database import Base, engine
-from app.api import agenda
+from app.database import engine
+from app.api import agenda, attendance, venues
+from app.services.asset_reference_reconciler import start_asset_reconciler, stop_asset_reconciler
+from app.services.event_outbox import start_event_outbox, stop_event_outbox
 
 
 DATABASE_READY_ATTEMPTS = 15
@@ -23,7 +25,6 @@ def initialize_database() -> None:
         try:
             with engine.connect() as connection:
                 connection.execute(text("SELECT 1"))
-            Base.metadata.create_all(bind=engine)
             return
         except Exception as exc:
             last_error = exc
@@ -109,4 +110,20 @@ def root():
     return {"message": "Welcome to Agenda Service"}
 
 
+@app.on_event("startup")
+def start_background_reconcilers():
+    if not str(engine.url).startswith("sqlite"):
+        start_asset_reconciler()
+        start_event_outbox()
+
+
+@app.on_event("shutdown")
+def stop_background_reconcilers():
+    stop_asset_reconciler()
+    stop_event_outbox()
+
+
+# Orden deliberado: /venues, /me y /internal deben preceder /{session_id}.
+app.include_router(venues.router)
+app.include_router(attendance.router)
 app.include_router(agenda.router)

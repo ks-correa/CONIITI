@@ -105,8 +105,13 @@ function shouldAttemptSessionRestore() {
         return true;
     }
 
-    const protectedPaths = new Set(['/staff', '/superusuario']);
-    if (protectedPaths.has(window.location.pathname)) {
+    const protectedPaths = new Set(['/staff', '/superusuario', '/perfil', '/mis-grupos']);
+    if (
+        protectedPaths.has(window.location.pathname)
+        || window.location.pathname.startsWith('/superusuario/')
+        || window.location.pathname.startsWith('/staff/')
+        || window.location.pathname.startsWith('/mis-grupos/')
+    ) {
         return true;
     }
 

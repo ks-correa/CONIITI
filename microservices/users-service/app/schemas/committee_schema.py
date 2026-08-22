@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 def _clean_optional(value: str | None) -> str | None:
@@ -66,6 +66,8 @@ class CommitteeMemberUpdate(BaseModel):
 
 
 class CommitteeMemberResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     nombre: str
     cargo: str
@@ -75,6 +77,3 @@ class CommitteeMemberResponse(BaseModel):
     orden: int
     activo: bool
     created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True

@@ -5,6 +5,7 @@ metadata:
 data:
   PAYMENT_PROVIDER_MODE: "mock"
   PUBLIC_APP_URL: "http://localhost"
+  AUTH_SERVICE_URL: "http://auth-service"
 ---
 apiVersion: apps/v1
 kind: Deployment

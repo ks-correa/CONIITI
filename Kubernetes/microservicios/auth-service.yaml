@@ -7,7 +7,7 @@ data:
   RABBITMQ_HOST: "rabbitmq-service"
   RABBITMQ_USER: "user"
   RABBITMQ_EXCHANGE: "coniiti_events"
-  ENVIRONMENT: "development"
+  ENVIRONMENT: "production"
   FRONTEND_URL: "http://localhost"
 ---
 apiVersion: apps/v1
@@ -30,7 +30,7 @@ spec:
       - name: auth-service
         image: auth-service:latest
         imagePullPolicy: IfNotPresent
-        command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
         resources:
           requests:
             memory: "72Mi"
@@ -51,6 +51,12 @@ spec:
             port: 8000
           initialDelaySeconds: 20
           periodSeconds: 15
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
         readinessProbe:
           httpGet:
             path: /health

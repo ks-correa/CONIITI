@@ -10,6 +10,7 @@ import {
     FiZap,
 } from 'react-icons/fi';
 
+import { useEventTheme } from '../context/EventThemeContext';
 import styles from '../styles/pages/DynamicPage.module.css';
 
 const pillars = [
@@ -55,13 +56,6 @@ const pillars = [
     },
 ];
 
-const highlights = [
-    { icon: <FiAward />, value: 'XI', label: 'edición CONIITI' },
-    { icon: <FiMapPin />, value: 'Bogotá', label: 'ciudad anfitriona' },
-    { icon: <FiCalendar />, value: '1 al 3', label: 'octubre de 2026' },
-    { icon: <FiGlobe />, value: 'Internacional', label: 'enfoque académico' },
-];
-
 const benefits = [
     'Acceder a perspectivas actuales sobre innovación, tecnología e ingeniería.',
     'Conectar con redes académicas y profesionales de Colombia y otros países.',
@@ -69,22 +63,43 @@ const benefits = [
     'Explorar tendencias que fortalecen la formación y la práctica profesional.',
 ];
 
+function formatConferenceDays(conferenceDays) {
+    if (!conferenceDays?.length) return 'Por confirmar';
+    const asDate = (value) => {
+        const [year, month, day] = value.split('-').map(Number);
+        return new Date(Date.UTC(year, month - 1, day, 12));
+    };
+    const first = asDate(conferenceDays[0]);
+    const last = asDate(conferenceDays[conferenceDays.length - 1]);
+    const short = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const full = new Intl.DateTimeFormat('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    return conferenceDays.length === 1 ? full.format(first) : `${short.format(first)} – ${full.format(last)}`;
+}
+
 export default function Acerca() {
+    const { agendaConfig, siteConfig, theme, isModuleVisible } = useEventTheme();
+    const conferenceDates = formatConferenceDays(agendaConfig?.conference_days);
+    const highlights = [
+        { icon: <FiAward />, value: agendaConfig?.edition_label ?? 'Por confirmar', label: 'edición oficial' },
+        { icon: <FiMapPin />, value: siteConfig.event.location_label, label: 'sede del evento' },
+        { icon: <FiCalendar />, value: conferenceDates, label: 'fechas oficiales' },
+        { icon: <FiGlobe />, value: theme.country, label: 'país invitado' },
+    ];
+    if (!isModuleVisible('about')) {
+        return <div className={styles.page}><div className={styles.container}><div className={styles.empty}><h1>Sección no disponible</h1><p>La organización ha ocultado temporalmente este contenido.</p></div></div></div>;
+    }
     return (
         <div className={styles.page}>
             <section className={`${styles.hero} ${styles.heroSplit}`}>
                 <div className={styles.heroContent}>
                     <span className={styles.eyebrow}>Congreso internacional</span>
-                    <h1>Acerca de CONIITI</h1>
-                    <p>
-                        Un punto de encuentro académico para explorar innovación, tendencias y nuevas
-                        aproximaciones en ingeniería con visión internacional.
-                    </p>
+                    <h1>{siteConfig.pages.about.title}</h1>
+                    <p>{siteConfig.pages.about.description}</p>
                 </div>
                 <div className={styles.heroPanel} aria-label="Datos principales del congreso">
-                    <span>Innovación y Tendencias en Ingeniería</span>
-                    <strong>XI edición | 2026</strong>
-                    <small>Bogotá, Colombia</small>
+                    <span>{theme.country} · país invitado</span>
+                    <strong>{agendaConfig?.edition_label ?? 'Edición por confirmar'}</strong>
+                    <small>{conferenceDates} · {siteConfig.event.location_label}</small>
                 </div>
             </section>
 

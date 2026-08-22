@@ -1,0 +1,38 @@
+.manager { display: grid; gap: 1rem; }
+.heading, .heading > div, .venueHeader, .venueHeader > div:last-child { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+.heading > div { justify-content: flex-start; }
+.heading svg { color: var(--color-accent, #d4a017); }
+.heading h2, .venueHeader h3 { margin: 0; color: var(--color-primary, #1f69b6); }
+.heading p, .venueHeader p { margin: 0.2rem 0 0; color: #64748b; }
+.heading button, .venueHeader button, .form button { display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; border: 0; border-radius: 8px; padding: 0.65rem 0.85rem; background: var(--color-primary, #1f69b6); color: #fff; font-weight: 700; cursor: pointer; }
+.layout { display: grid; grid-template-columns: minmax(240px, 0.32fr) 1fr; gap: 1rem; }
+.sidebar, .content { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 1rem; }
+.form { display: grid; gap: 0.7rem; }
+.form h3 { display: flex; align-items: center; gap: 0.4rem; margin: 0; color: #174f89; }
+.form label { display: grid; gap: 0.25rem; color: #334155; font-size: 0.82rem; font-weight: 700; }
+.form input, .form textarea, .form select { width: 100%; box-sizing: border-box; border: 1px solid #cbd5e1; border-radius: 8px; padding: 0.6rem; font: inherit; }
+.venueList { display: grid; gap: 0.45rem; margin-top: 1rem; }
+.venueList button { display: grid; gap: 0.2rem; padding: 0.7rem; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; text-align: left; cursor: pointer; }
+.venueList span { color: #64748b; font-size: 0.75rem; }
+.venueList .selectedVenue { border-color: #d4a017; background: #fffbeb; }
+.resources { margin: 1.2rem 0; }
+.resources article { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; border-bottom: 1px solid #e2e8f0; padding: 0.7rem 0; }
+.resources article div { display: grid; gap: 0.15rem; }
+.resources article span { color: #64748b; font-size: 0.75rem; }
+.resources .resourceSupplement { display: flex; align-items: center; gap: 0.3rem; }
+.resourceSupplement a { display: inline-flex; align-items: center; gap: 0.2rem; color: var(--color-primary, #1f69b6); font-weight: 700; }
+.resources article button { border: 0; background: transparent; color: #dc2626; cursor: pointer; }
+.resourceForm { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 1rem; border-radius: 10px; background: #f8fafc; }
+.resourceForm h3, .resourceForm small, .resourceForm > button { grid-column: 1 / -1; }
+.supplementalField { display: grid; grid-column: 1 / -1; gap: 0.6rem; min-width: 0; padding: 0.75rem; border: 1px solid #dbe5f0; border-radius: 10px; background: #fff; }
+.supplementalField > small { color: #64748b; }
+.assetSelection { display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #334155; }
+.assetSelection > div { display: grid; gap: 0.1rem; min-width: 0; margin-right: auto; }
+.assetSelection span { overflow: hidden; color: #64748b; font-size: 0.75rem; text-overflow: ellipsis; white-space: nowrap; }
+.assetSelection a, .assetSelection button { display: inline-flex; align-items: center; gap: 0.25rem; flex: 0 0 auto; }
+.assetSelection a { color: var(--color-primary, #1f69b6); font-size: 0.8rem; font-weight: 700; }
+.assetSelection button { border: 0; background: transparent; color: #b91c1c; cursor: pointer; font-weight: 700; }
+.danger { background: #b91c1c !important; }
+.error { padding: 0.75rem; border-radius: 8px; background: #fef2f2; color: #991b1b; }
+.empty { color: #64748b; text-align: center; padding: 3rem; }
+@media (max-width: 800px) { .layout { grid-template-columns: 1fr; } .resourceForm { grid-template-columns: 1fr; } .resourceForm > * { grid-column: 1 !important; } .venueHeader { align-items: flex-start; flex-direction: column; } .assetSelection { align-items: flex-start; flex-wrap: wrap; } }

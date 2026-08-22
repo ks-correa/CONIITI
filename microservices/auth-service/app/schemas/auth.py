@@ -132,6 +132,13 @@ class AuthenticatedUserResponse(BaseModel):
     full_name: str
     role: str
     institution: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    career: Optional[str] = None
+    gender: Optional[str] = None
+    document: Optional[str] = None
+    institutional_code: Optional[str] = None
+    profile_completed: bool = False
     is_verified: bool
     is_active: bool
 
@@ -203,3 +210,28 @@ class InternalUserResponse(BaseModel):
     email: EmailStr
     full_name: str
     is_active: bool
+    session_version: int
+
+
+class SessionRevocationRequest(BaseModel):
+    is_active: Optional[bool] = None
+
+
+class SessionRevocationResponse(BaseModel):
+    user_id: str
+    is_active: bool
+    session_version: int
+
+
+class IntrospectionRequest(BaseModel):
+    token: str = Field(..., min_length=16, max_length=4096)
+
+
+class IntrospectionResponse(BaseModel):
+    active: bool
+    user_id: Optional[str] = None
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    session_version: Optional[int] = None
+    expires_at: Optional[int] = None

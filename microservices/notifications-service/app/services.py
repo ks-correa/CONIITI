@@ -37,7 +37,12 @@ def _require_dict(payload: dict[str, Any], field: str) -> dict[str, Any]:
 
 
 def process_event(routing_key: str, payload: dict[str, Any]) -> str:
-    _require_str(payload, "event_id")
+    event_id = _require_str(payload, "event_id")
+    if len(event_id) > 64:
+        raise InvalidPayloadError("'event_id' admite hasta 64 caracteres.")
+    envelope_event = payload.get("event")
+    if envelope_event is not None and envelope_event != routing_key:
+        raise InvalidPayloadError("'event' no coincide con la routing key.")
 
     if routing_key == "usuario.registrado":
         email = _require_str(payload, "email")
@@ -58,6 +63,22 @@ def process_event(routing_key: str, payload: dict[str, Any]) -> str:
         return (
             f"Actualizacion de agenda preparada para {len(afectados)} usuarios sobre '{titulo}'."
         )
+
+    if routing_key == "asistencia.confirmada":
+        _require_str(payload, "session_id")
+        _require_str(payload, "user_id")
+        _require_str(payload, "confirmed_at")
+        return "Confirmacion de asistencia procesada para una sesion del evento."
+
+    if routing_key == "premio.adjudicado":
+        _require_str(payload, "raffle_id")
+        _require_str(payload, "winner_user_id")
+        _require_str(payload, "drawn_at")
+        _require_str(payload, "audit_hash")
+        draw_number = payload.get("draw_number")
+        if not isinstance(draw_number, int) or draw_number < 1:
+            raise InvalidPayloadError("'draw_number' debe ser un entero positivo.")
+        return f"Adjudicacion auditable procesada para el ganador numero {draw_number}."
 
     raise InvalidPayloadError(f"Routing key no soportada: {routing_key}")
 

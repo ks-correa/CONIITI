@@ -1,9 +1,13 @@
 from dataclasses import dataclass
+import secrets
+import uuid
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from jose import JWTError, jwt
 
 from app.config import settings
+from app.clients import auth_client
+import httpx
 
 
 @dataclass
@@ -12,6 +16,7 @@ class AuthenticatedUser:
     email: str | None
     full_name: str | None
     role: str
+    session_version: int | None = None
 
 
 def _extract_token(request: Request) -> str:
@@ -31,6 +36,59 @@ def _extract_token(request: Request) -> str:
 
 def get_current_user(request: Request) -> AuthenticatedUser:
     token = _extract_token(request)
+
+    if settings.AUTH_INTROSPECTION_ENABLED:
+        try:
+            payload = auth_client.introspect_token(token)
+        except (httpx.HTTPError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No fue posible validar la sesion en auth-service.",
+            ) from exc
+
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth devolvio un contrato de introspeccion invalido.",
+            )
+        if payload.get("active") is not True:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Sesion invalida, expirada o revocada.",
+            )
+
+        try:
+            user_id = str(uuid.UUID(str(payload.get("user_id"))))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth devolvio un identificador de usuario invalido.",
+            ) from exc
+        role = payload.get("role")
+        if not isinstance(role, str) or role.strip().lower() not in {
+            "external",
+            "university_community",
+            "staff",
+            "superuser",
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth devolvio un rol invalido.",
+            )
+        session_version = payload.get("session_version")
+        if not isinstance(session_version, int) or isinstance(session_version, bool) or session_version < 1:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth devolvio una version de sesion invalida.",
+            )
+
+        return AuthenticatedUser(
+            id=user_id,
+            email=payload.get("email"),
+            full_name=payload.get("full_name"),
+            role=role.strip().lower(),
+            session_version=session_version,
+        )
 
     try:
         payload = jwt.decode(
@@ -63,6 +121,7 @@ def get_current_user(request: Request) -> AuthenticatedUser:
         email=payload.get("email"),
         full_name=payload.get("full_name"),
         role=str(role),
+        session_version=payload.get("sv"),
     )
 
 
@@ -80,7 +139,10 @@ def require_superuser(
 def require_internal_request(
     x_internal_service_token: str | None = Header(default=None),
 ) -> None:
-    if x_internal_service_token != settings.INTERNAL_SERVICE_TOKEN:
+    if not x_internal_service_token or not secrets.compare_digest(
+        x_internal_service_token,
+        settings.INTERNAL_SERVICE_TOKEN,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solicitud interna no autorizada.",

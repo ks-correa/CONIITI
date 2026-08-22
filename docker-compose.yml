@@ -68,6 +68,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-user}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-local-dev-rabbitmq-password}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
       interval: 10s
@@ -111,8 +113,10 @@ services:
         limits:
           memory: 96M
     depends_on:
-      - shared-db
-      - rabbitmq
+      shared-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -135,8 +139,10 @@ services:
         limits:
           memory: 96M
     depends_on:
-      - shared-db
-      - auth-service
+      shared-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -152,6 +158,19 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-local-dev-postgres-password}@shared-db:5432/agenda_db
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-jwt-secret-change-me-32-chars}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      FILES_SERVICE_URL: http://files-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
+      ATTENDANCE_SIGNING_KEY: ${ATTENDANCE_SIGNING_KEY:-local-dev-attendance-signing-key-change-me}
+      AGENDA_MEDIA_ALLOWED_HOSTS: ${AGENDA_MEDIA_ALLOWED_HOSTS:-}
+      ASSET_REFERENCE_RECONCILER_ENABLED: ${ASSET_REFERENCE_RECONCILER_ENABLED:-true}
+      ASSET_REFERENCE_POLL_SECONDS: ${ASSET_REFERENCE_POLL_SECONDS:-15}
+      ASSET_REFERENCE_MAX_ATTEMPTS: ${ASSET_REFERENCE_MAX_ATTEMPTS:-8}
+      ASSET_REFERENCE_PROCESSING_LEASE_SECONDS: ${ASSET_REFERENCE_PROCESSING_LEASE_SECONDS:-120}
+      AGENDA_EVENT_OUTBOX_ENABLED: ${AGENDA_EVENT_OUTBOX_ENABLED:-true}
+      AGENDA_EVENT_OUTBOX_POLL_SECONDS: ${AGENDA_EVENT_OUTBOX_POLL_SECONDS:-10}
+      ATTENDANCE_REQUIRE_REGISTRATION: ${ATTENDANCE_REQUIRE_REGISTRATION:-true}
+      ASISTENCIA_CONFIRMADA_ENABLED: ${ASISTENCIA_CONFIRMADA_ENABLED:-true}
       RABBITMQ_HOST: shared-rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:-user}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-local-dev-rabbitmq-password}
@@ -160,8 +179,14 @@ services:
         limits:
           memory: 96M
     depends_on:
-      - shared-db
-      - rabbitmq
+      shared-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      files-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -180,13 +205,22 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:-user}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-local-dev-rabbitmq-password}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-coniiti_events}
+      RABBITMQ_QUEUE: ${NOTIFICATIONS_RABBITMQ_QUEUE:-notifications_queue_v2}
+      RABBITMQ_DLX: ${RABBITMQ_DLX:-coniiti_events_dlx}
+      RABBITMQ_DLQ: ${NOTIFICATIONS_RABBITMQ_DLQ:-notifications_dead_letter}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
     deploy:
       resources:
         limits:
           memory: 96M
     depends_on:
-      - shared-db
-      - rabbitmq
+      shared-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -202,6 +236,8 @@ services:
     environment:
       PAYMENTS_DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-local-dev-postgres-password}@shared-db:5432/paymentsdb
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-jwt-secret-change-me-32-chars}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
       PAYMENT_PROVIDER_MODE: ${PAYMENT_PROVIDER_MODE:-mock}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
       PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
@@ -212,7 +248,10 @@ services:
         limits:
           memory: 96M
     depends_on:
-      - shared-db
+      shared-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -232,13 +271,22 @@ services:
       RABBITMQ_USER: ${RABBITMQ_USER:-user}
       RABBITMQ_PASS: ${RABBITMQ_PASS:-local-dev-rabbitmq-password}
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-coniiti_events}
+      RABBITMQ_QUEUE: ${ANALYTICS_RABBITMQ_QUEUE:-analytics_queue_v2}
+      RABBITMQ_DLX: ${RABBITMQ_DLX:-coniiti_events_dlx}
+      RABBITMQ_DLQ: ${ANALYTICS_RABBITMQ_DLQ:-analytics_dead_letter}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
     deploy:
       resources:
         limits:
           memory: 96M
     depends_on:
-      - analytics-mongo
-      - rabbitmq
+      analytics-mongo:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
@@ -253,18 +301,69 @@ services:
     container_name: files-service
     environment:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-jwt-secret-change-me-32-chars}
+      FILES_DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-local-dev-postgres-password}@shared-db:5432/filesdb
+      AUTH_SERVICE_URL: http://auth-service:8000
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
+      FILES_MAX_IMAGE_BYTES: ${FILES_MAX_IMAGE_BYTES:-26214400}
+      FILES_MAX_VIDEO_BYTES: ${FILES_MAX_VIDEO_BYTES:-536870912}
+      FILES_MAX_DOCUMENT_BYTES: ${FILES_MAX_DOCUMENT_BYTES:-52428800}
+      FILES_IMPORT_LEGACY_JSON: ${FILES_IMPORT_LEGACY_JSON:-true}
     volumes:
       - files_uploads:/app/uploads
     deploy:
       resources:
         limits:
           memory: 96M
+    depends_on:
+      shared-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
+    networks:
+      - coniiti_net
+
+  raffles-service:
+    build: ./microservices/raffles-service
+    container_name: raffles-service
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-local-dev-postgres-password}@shared-db:5432/rafflesdb
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-dev-jwt-secret-change-me-32-chars}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-local-dev-internal-token}
+      AUTH_SERVICE_URL: http://auth-service:8000
+      AGENDA_SERVICE_URL: http://agenda-service:8000
+      USERS_SERVICE_URL: http://users-service:8000
+      RABBITMQ_HOST: shared-rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-user}
+      RABBITMQ_PASS: ${RABBITMQ_PASS:-local-dev-rabbitmq-password}
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-coniiti_events}
+      PREMIO_ADJUDICADO_ENABLED: ${PREMIO_ADJUDICADO_ENABLED:-true}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    depends_on:
+      shared-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      users-service:
+        condition: service_healthy
+      agenda-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - coniiti_net
 
@@ -284,37 +383,59 @@ services:
     networks:
       - coniiti_net
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--data.retention=120h'
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+    networks:
+      - coniiti_net
+
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
+    restart: unless-stopped
     volumes:
       - ./prometheus:/etc/prometheus
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
-    ports:
-      - "9090:9090"
     deploy:
       resources:
         limits:
           memory: 256M
+    depends_on:
+      - alertmanager
     networks:
       - coniiti_net
 
   grafana:
     image: grafana/grafana:10.4.1
     container_name: grafana
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning
       - grafana_data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-coniiti-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Define GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
     deploy:
       resources:
         limits:
@@ -331,6 +452,8 @@ networks:
 volumes:
   shared_postgres_data:
   analytics_mongo_data:
+  rabbitmq_data:
   files_uploads:
   prometheus_data:
+  alertmanager_data:
   grafana_data:

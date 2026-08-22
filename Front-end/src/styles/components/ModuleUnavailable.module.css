@@ -1,0 +1,6 @@
+.page { min-height: 55vh; display: grid; place-items: center; padding: 3rem 1rem; }
+.card { max-width: 560px; padding: 2.5rem; text-align: center; background: #fff; border: 1px solid rgba(31, 105, 182, .14); border-radius: 18px; box-shadow: 0 12px 36px rgba(9, 29, 54, .08); }
+.card > span { color: #b3840f; font-size: .75rem; font-weight: 800; letter-spacing: .16em; }
+.card h1 { color: #0d2b4e; margin: .6rem 0; }
+.card p { color: #64748b; line-height: 1.6; }
+.card a { display: inline-block; margin-top: .7rem; padding: .65rem 1rem; border-radius: 8px; background: #0d2b4e; color: #fff; text-decoration: none; font-weight: 700; }

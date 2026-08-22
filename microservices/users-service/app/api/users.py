@@ -5,17 +5,78 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.user_schema import (
+    AdminProfileUpdateRequest,
+    PaginatedProfilesResponse,
     ProfileCreateRequest,
     ProfileResponse,
+    ProfileSummaryRequest,
+    ProfileSummaryResponse,
     ProfileUpdateRequest,
+    SelfProfileUpdateRequest,
     StaffCreateRequest,
     StaffUpdateRequest,
 )
-from app.utils.security import require_internal_request, require_superuser
-from app.services import profile_service, staff_service
+from app.utils.security import AuthenticatedUser, get_current_user, require_internal_request, require_superuser
+from app.services import account_service, profile_service, staff_service
 
 
 router = APIRouter()
+
+
+@router.get("/me", response_model=ProfileResponse)
+def get_my_profile(
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    return profile_service.get_user_or_404(current_user.id, db)
+
+
+@router.patch("/me", response_model=ProfileResponse)
+def update_my_profile(
+    payload: SelfProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    return account_service.update_own_profile(current_user, payload, db)
+
+
+@router.get("/admin/profiles", response_model=PaginatedProfilesResponse)
+def list_profiles_for_admin(
+    search: str | None = Query(default=None, max_length=255),
+    role: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Any = Depends(require_superuser),
+):
+    return profile_service.list_profiles_paginated(
+        db,
+        search=search,
+        role=role,
+        is_active=is_active,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.patch("/admin/profiles/{user_id}", response_model=ProfileResponse)
+def update_profile_for_admin(
+    user_id: str,
+    payload: AdminProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    actor: AuthenticatedUser = Depends(require_superuser),
+):
+    return account_service.update_profile_as_superuser(actor, user_id, payload, db)
+
+
+@router.post("/internal/profile-summaries", response_model=ProfileSummaryResponse)
+def get_internal_profile_summaries(
+    payload: ProfileSummaryRequest,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_internal_request),
+):
+    return profile_service.get_profile_summaries(payload.user_ids, db)
 
 
 @router.post("/internal/profiles", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)

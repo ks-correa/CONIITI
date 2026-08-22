@@ -1,0 +1,37 @@
+groups:
+  - name: coniiti-service-health
+    rules:
+      - alert: ConiitiServiceDown
+        expr: up{job=~".*-service"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Servicio CONIITI no disponible"
+          description: "Prometheus no puede consultar {{ $labels.job }} durante más de dos minutos."
+
+      - alert: ConiitiHighErrorRate
+        expr: |
+          sum by (job) (rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          clamp_min(sum by (job) (rate(http_requests_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Tasa elevada de errores en {{ $labels.job }}"
+          description: "Más del 5% de las solicitudes terminaron en 5xx durante cinco minutos."
+
+      - alert: ConiitiHighP95Latency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, job) (rate(http_request_duration_seconds_bucket[5m]))
+          ) > 2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latencia p95 alta en {{ $labels.job }}"
+          description: "El percentil 95 supera dos segundos durante diez minutos."

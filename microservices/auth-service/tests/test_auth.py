@@ -49,6 +49,7 @@ from app.main import app
 from app.models import AuthUser, OTPCode, OTPPurpose
 from app.clients import email_service, oauth_service, users_client
 from app.messaging import event_service
+from app.services import auth_service
 
 
 engine = create_engine(
@@ -431,6 +432,25 @@ def test_google_oauth_redirect_sets_state_cookie():
     assert params["access_type"] == ["offline"]
 
 
+def test_oauth_ignores_untrusted_frontend_origin():
+    response = client.get(
+        "/oauth/google",
+        headers={
+            "origin": "https://attacker.example",
+            "referer": "https://attacker.example/phishing",
+            "x-forwarded-prefix": "/api/auth",
+            "x-forwarded-host": "attacker.example",
+            "x-forwarded-proto": "https",
+        },
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert "frontend_origin=" not in response.headers.get("set-cookie", "")
+    params = parse_qs(urlparse(response.headers["location"]).query)
+    assert params["redirect_uri"] == [settings.GOOGLE_REDIRECT_URI]
+
+
 def test_google_oauth_callback_creates_session_cookie():
     async def _exchange_google_code(_code, redirect_uri=None):
         assert redirect_uri == "http://localhost/api/auth/oauth/google/callback"
@@ -550,3 +570,59 @@ def test_microsoft_oauth_redirect_includes_select_account():
     assert params["redirect_uri"] == ["http://localhost/api/auth/oauth/microsoft/callback"]
     assert params["scope"] == ["openid email profile User.Read"]
     assert params["prompt"] == ["select_account"]
+
+
+def test_internal_introspection_rejects_token_after_session_revocation():
+    create_response = client.post(
+        "/internal/users",
+        headers={"X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN},
+        json={
+            "email": "revocable@coniiti.edu",
+            "password": "ClaveSegura123",
+            "full_name": "Revocable User",
+            "is_active": True,
+        },
+    )
+    assert create_response.status_code == 201
+    user_id = create_response.json()["user_id"]
+
+    db = TestingSessionLocal()
+    try:
+        user = db.query(AuthUser).filter(AuthUser.id == user_id).one()
+        token = auth_service.create_access_token_for_user(user, "external", user.full_name)
+        original_version = user.session_version
+    finally:
+        db.close()
+
+    introspection = client.post(
+        "/internal/introspect",
+        headers={"X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN},
+        json={"token": token},
+    )
+    assert introspection.status_code == 200
+    assert introspection.json()["active"] is True
+    assert introspection.json()["session_version"] == original_version
+
+    revoked = client.post(
+        f"/internal/users/{user_id}/revoke-sessions",
+        headers={"X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN},
+        json={},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["session_version"] == original_version + 1
+
+    stale = client.post(
+        "/internal/introspect",
+        headers={"X-Internal-Service-Token": settings.INTERNAL_SERVICE_TOKEN},
+        json={"token": token},
+    )
+    assert stale.status_code == 200
+    assert stale.json() == {
+        "active": False,
+        "user_id": None,
+        "email": None,
+        "full_name": None,
+        "role": None,
+        "session_version": None,
+        "expires_at": None,
+    }

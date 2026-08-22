@@ -569,6 +569,57 @@
       ],
       "title": "Errores del Servidor (HTTP 5xx) por Segundo",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 27 },
+      "id": 103,
+      "title": "INTEGRACIÓN: CONFIGURACIÓN, MULTIMEDIA, GRUPOS, ASISTENCIA Y SORTEOS",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 7,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "editorMode": "code",
+          "expr": "sum(rate(http_requests_total{handler=~\"/site-config.*|/assets.*|/content/cards.*|/venues.*|/.*attendance.*|/groups.*|/admin/profiles.*\"}[5m])) by (job, handler, status) or sum(rate(http_requests_total{job=\"raffles-service\"}[5m])) by (job, handler, status)",
+          "legendFormat": "{{job}} {{handler}} HTTP {{status}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Tráfico de funcionalidades integradas",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 8,
+      "options": {
+        "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "Prometheus" },
+          "editorMode": "code",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{handler=~\"/site-config.*|/assets.*|/content/cards.*|/venues.*|/.*attendance.*|/groups.*|/admin/profiles.*\"}[5m])) by (le, job, handler)) or histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"raffles-service\"}[5m])) by (le, job, handler))",
+          "legendFormat": "{{job}} {{handler}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia p95 de integración",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

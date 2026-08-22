@@ -26,9 +26,21 @@ export const SESSION_EVENT_TYPE = Object.freeze({
     PANEL: 'Panel',
 });
 
-export const SESSION_ROOMS = Object.freeze({
-    SEDE_4: 'SEDE 4',
-    PARANINFO: 'Paraninfo',
-    TORRES: 'Torres',
-    P3_SALA_COMPT: 'P3_SALA_COMPT',
+// Las sedes ya no se compilan en el bundle: se consultan en /api/agenda/venues.
+export const SESSION_ROOMS = Object.freeze({});
+
+export const VENUE_RESOURCE_TYPE = Object.freeze({
+    VIDEO: 'video',
+    IMAGE: 'image',
+    DOCUMENT: 'document',
+    LINK: 'link',
+    POSTER: 'poster',
+});
+
+export const VENUE_RESOURCE_STATE = Object.freeze({
+    PENDING_ASSET: 'pending_asset',
+    ACTIVE: 'active',
+    PENDING_DELETE: 'pending_delete',
+    TOMBSTONED: 'tombstoned',
+    ERROR: 'error',
 });

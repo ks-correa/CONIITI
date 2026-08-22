@@ -48,6 +48,20 @@ spec:
         volumeMounts:
         - name: mongo-data
           mountPath: /data/db
+        startupProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 1)"]
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 1)"]
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["mongosh", "--quiet", "--eval", "quit(db.adminCommand('ping').ok ? 0 : 1)"]
+          periodSeconds: 15
+          failureThreshold: 5
       volumes:
       - name: mongo-data
         persistentVolumeClaim:

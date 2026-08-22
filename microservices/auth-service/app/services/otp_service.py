@@ -1,4 +1,4 @@
-import random
+import secrets
 import string
 from datetime import datetime, timedelta, timezone
 
@@ -17,7 +17,7 @@ def generate_otp(user: AuthUser, purpose: OTPPurpose, db: Session) -> str:
         OTPCode.used.is_(False),
     ).update({"used": True}, synchronize_session=False)
 
-    code_value = "".join(random.choices(string.digits, k=6))
+    code_value = "".join(secrets.choice(string.digits) for _ in range(6))
     otp_record = OTPCode(
         user_id=user.id,
         code=code_value,

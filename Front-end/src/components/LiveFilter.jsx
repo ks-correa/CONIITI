@@ -1,24 +1,20 @@
 import { FiSearch } from 'react-icons/fi';
 
-import { SESSION_MODALITY, SESSION_EVENT_TYPE, SESSION_ROOMS } from '../types/session';
+import { SESSION_MODALITY, SESSION_EVENT_TYPE } from '../types/session';
 import styles from '../styles/components/LiveFilter.module.css';
-
-const ROOM_OPTIONS = [
-    { value: '', label: 'Todas' },
-    ...Object.values(SESSION_ROOMS).map((room) => ({ value: room, label: room })),
-];
 
 export default function LiveFilter({
     days,
     activeDay,
     activeModality,
     activeEventType,
+    venues = [],
+    activeVenueId,
     searchQuery,
     onDayChange,
     onModalityChange,
     onEventTypeChange,
-    activeRoom,
-    onRoomChange,
+    onVenueChange,
     onSearchQueryChange,
 }) {
     const handleModalityChange = (event) => {
@@ -64,8 +60,9 @@ export default function LiveFilter({
             </div>
 
             <div className={styles.selectWrapper}>
-                <label className={styles.selectLabel}>Actividad</label>
+                <label className={styles.selectLabel} htmlFor="event-type-select">Actividad</label>
                 <select
+                    id="event-type-select"
                     className={styles.select}
                     value={activeEventType ?? ''}
                     onChange={(event) => onEventTypeChange(event.target.value || null)}
@@ -78,15 +75,17 @@ export default function LiveFilter({
             </div>
 
             <div className={`${styles.selectWrapper} ${styles.roomWrapper}`}>
-                <label className={styles.selectLabel}>Sala</label>
+                <label className={styles.selectLabel} htmlFor="venue-select">Sede</label>
                 <select
+                    id="venue-select"
                     className={`${styles.select} ${styles.roomSelect}`}
-                    value={activeRoom ?? ''}
-                    onChange={(event) => onRoomChange(event.target.value || null)}
+                    value={activeVenueId ?? ''}
+                    onChange={(event) => onVenueChange(event.target.value || null)}
                 >
-                    {ROOM_OPTIONS.map((room) => (
-                        <option key={room.value || 'all'} value={room.value}>
-                            {room.label}
+                    <option value="">Todas</option>
+                    {venues.map((venue) => (
+                        <option key={venue.id} value={venue.id}>
+                            {venue.name}
                         </option>
                     ))}
                 </select>

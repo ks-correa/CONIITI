@@ -11,6 +11,7 @@ export const HEALTH_TARGETS = [
     { id: 'payments', label: 'Payments', path: '/payments/health' },
     { id: 'analytics', label: 'Analytics', path: '/analytics/health' },
     { id: 'notifications', label: 'Notifications', path: '/notifications/health' },
+    { id: 'raffles', label: 'Sorteos', path: '/raffles/health' },
 ];
 
 async function checkTarget(target, checkedAt) {

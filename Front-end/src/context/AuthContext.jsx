@@ -52,6 +52,12 @@ export const AuthProvider = ({ children }) => {
      * Llama al endpoint del back-end para limpiar las cookies HttpOnly
      * y luego borra el estado local.
      */
+    const refreshUser = useCallback(async () => {
+        const userData = await getMe({ force: true });
+        setUser(userData);
+        return userData;
+    }, []);
+
     const logout = useCallback(async () => {
         try {
             await logoutService();
@@ -62,7 +68,7 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, setUser, logout }}>
+        <AuthContext.Provider value={{ user, isLoading, setUser, refreshUser, logout }}>
             {children}
         </AuthContext.Provider>
     );

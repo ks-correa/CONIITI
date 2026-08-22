@@ -10,19 +10,25 @@ import styles from '../styles/pages/Agenda.module.css';
 
 export default function Agenda({ registeredIds = new Set(), onToggleRegister }) {
     const [selectedSpeaker, setSelectedSpeaker] = useState(null);
-    const { theme } = useEventTheme();
+    const { theme, siteConfig } = useEventTheme();
 
     const {
         searchQuery, setSearchQuery,
         activeEventType, setActiveEventType,
-        activeRoom, setActiveRoom,
+        activeVenueId, setActiveVenueId,
         sessions, days, activeDay, activeModality,
+        configuration, venues, error,
         isLoading, setActiveDay, setActiveModality, refresh,
     } = useAgenda();
 
     usePolling(refresh, 60_000);
 
     const activeDayLabel = days.find((day) => day.value === activeDay)?.label ?? 'Dia seleccionado';
+    const agendaPageConfig = siteConfig?.pages?.agenda ?? {};
+    const agendaTitle = agendaPageConfig.title || `Agenda ${configuration?.edition_label ?? 'CONIITI'}`;
+    const agendaSubtitle = agendaPageConfig.subtitle || 'Explora sesiones, talleres y ponencias por día, sala y modalidad.';
+    const showFilters = agendaPageConfig.show_filters !== false;
+    const columns = Number(agendaPageConfig.columns) || 3;
 
     return (
         <div className={styles.agendaPage}>
@@ -34,8 +40,8 @@ export default function Agenda({ registeredIds = new Set(), onToggleRegister }) 
                 <div className={styles.heroContent}>
                     <div>
                         <span className={styles.eyebrow}>{theme.editionLabel}</span>
-                        <h1>Agenda CONIITI 2026</h1>
-                        <p>Explora sesiones, talleres y ponencias por dia, sala y modalidad.</p>
+                        <h1>{agendaTitle}</h1>
+                        <p>{agendaSubtitle}</p>
                     </div>
 
                     <div className={styles.countryPanel}>
@@ -72,19 +78,22 @@ export default function Agenda({ registeredIds = new Set(), onToggleRegister }) 
                 La agenda se actualiza automaticamente para mostrarte la informacion mas reciente.
             </div>
 
-            <LiveFilter
+            {error && <div role="alert" className={styles.error}>{error}</div>}
+
+            {showFilters && <LiveFilter
                 days={days}
+                venues={venues}
                 activeDay={activeDay}
                 activeModality={activeModality}
                 activeEventType={activeEventType}
-                activeRoom={activeRoom}
+                activeVenueId={activeVenueId}
                 searchQuery={searchQuery}
                 onDayChange={setActiveDay}
                 onModalityChange={setActiveModality}
                 onEventTypeChange={setActiveEventType}
-                onRoomChange={setActiveRoom}
+                onVenueChange={setActiveVenueId}
                 onSearchQueryChange={setSearchQuery}
-            />
+            />}
 
             <AgendaGrid
                 sessions={sessions}
@@ -92,6 +101,7 @@ export default function Agenda({ registeredIds = new Set(), onToggleRegister }) 
                 onSpeakerClick={setSelectedSpeaker}
                 registeredIds={registeredIds}
                 onToggleRegister={onToggleRegister}
+                columns={columns}
             />
 
             {selectedSpeaker && (

@@ -8,7 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { useState, useEffect, Suspense, lazy } from 'react';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { EventThemeProvider } from './context/EventThemeContext';
+import { EventThemeProvider, useEventTheme } from './context/EventThemeContext';
 import { getRegisteredSessions, toggleRegistration } from './services/agendaService';
 import styles from './styles/App.module.css';
 
@@ -16,6 +16,7 @@ import styles from './styles/App.module.css';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
+import ModuleUnavailable from './components/ModuleUnavailable';
 
 // Páginas con carga perezosa para TBT Code Splitting
 const Home = lazy(() => import('./pages/Home'));
@@ -37,6 +38,15 @@ const SuperuserDashboard = lazy(() => import('./pages/SuperuserDashboard'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Estado = lazy(() => import('./pages/Estado'));
+const Profile = lazy(() => import('./pages/Profile'));
+const MyGroups = lazy(() => import('./pages/MyGroups'));
+const GroupAdminPage = lazy(() => import('./pages/GroupAdminPage'));
+
+function ModuleGate({ moduleName, children }) {
+    const { isModuleVisible, loading } = useEventTheme();
+    if (loading) return <div style={{ padding: '4rem 2rem', textAlign: 'center' }}>Cargando configuración...</div>;
+    return isModuleVisible(moduleName) ? children : <ModuleUnavailable />;
+}
 
 export default function App() {
     return (
@@ -128,7 +138,7 @@ function AppLayout() {
     };
 
     // Rutas de dashboard que ocupan ancho completo sin márgenes
-    const isDashboard = ['/staff', '/superusuario'].includes(location.pathname);
+    const isDashboard = location.pathname === '/staff' || location.pathname.startsWith('/superusuario');
 
     return (
         <div className={styles.app}>
@@ -147,7 +157,7 @@ function AppLayout() {
                                 }
                             />
                             <Route
-                                path="/superusuario"
+                                path="/superusuario/*"
                                 element={
                                     <ProtectedRoute roles={['superuser']}>
                                         <SuperuserDashboard />
@@ -166,31 +176,38 @@ function AppLayout() {
                                 path="/agenda"
                                 element={
                                     <div className={styles.agendaProtectedWrapper}>
-                                        <Agenda
-                                            registeredIds={registeredIds}
-                                            onToggleRegister={toggleRegistered}
-                                        />
+                                        <ModuleGate moduleName="agenda">
+                                            <Agenda
+                                                registeredIds={registeredIds}
+                                                onToggleRegister={toggleRegistered}
+                                            />
+                                        </ModuleGate>
                                     </div>
                                 }
                             />
                             <Route
                                 path="/mis-conferencias"
                                 element={
-                                    <MyConferences
-                                        registeredIds={registeredIds}
-                                        onToggleRegister={toggleRegistered}
-                                    />
+                                    <ModuleGate moduleName="agenda">
+                                        <MyConferences
+                                            registeredIds={registeredIds}
+                                            onToggleRegister={toggleRegistered}
+                                        />
+                                    </ModuleGate>
                                 }
                             />
-                            <Route path="/memorias" element={<Memorias />} />
-                            <Route path="/acerca-de" element={<About />} />
-                            <Route path="/contacto" element={<Contact />} />
-                            <Route path="/comite" element={<Comite />} />
-                            <Route path="/conferencistas" element={<Conferencistas />} />
-                            <Route path="/autores" element={<Autores />} />
-                            <Route path="/galerias" element={<Galerias />} />
+                            <Route path="/memorias" element={<ModuleGate moduleName="memories"><Memorias /></ModuleGate>} />
+                            <Route path="/acerca-de" element={<ModuleGate moduleName="about"><About /></ModuleGate>} />
+                            <Route path="/contacto" element={<ModuleGate moduleName="contact"><Contact /></ModuleGate>} />
+                            <Route path="/comite" element={<ModuleGate moduleName="committee"><Comite /></ModuleGate>} />
+                            <Route path="/conferencistas" element={<ModuleGate moduleName="speakers"><Conferencistas /></ModuleGate>} />
+                            <Route path="/autores" element={<ModuleGate moduleName="authors"><Autores /></ModuleGate>} />
+                            <Route path="/galerias" element={<ModuleGate moduleName="gallery"><Galerias /></ModuleGate>} />
                             <Route path="/paginas" element={<Pages />} />
                             <Route path="/estado" element={<Estado />} />
+                            <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                            <Route path="/mis-grupos" element={<ProtectedRoute><MyGroups /></ProtectedRoute>} />
+                            <Route path="/mis-grupos/:groupId/administrar" element={<ProtectedRoute><GroupAdminPage /></ProtectedRoute>} />
                             <Route path="/login" element={<Login />} />
                             <Route path="/register" element={<Register />} />
                             <Route path="/verificar-otp" element={<OTPVerification />} />

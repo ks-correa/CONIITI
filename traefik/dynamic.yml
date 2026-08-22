@@ -1,5 +1,14 @@
 http:
   routers:
+    metrics-denied-file:
+      rule: "PathRegexp(`^/api/(auth|users|committees|agenda|notifications|analytics|files|payments|raffles)/metrics/?$`)"
+      entryPoints:
+        - web
+      service: auth-svc
+      middlewares:
+        - hide-public-metrics
+      priority: 1000
+
     auth-file:
       rule: "PathPrefix(`/api/auth`)"
       entryPoints:
@@ -80,6 +89,16 @@ http:
         - strip-payments
       priority: 250
 
+    raffles-file:
+      rule: "PathPrefix(`/api/raffles`)"
+      entryPoints:
+        - web
+      service: raffles-svc
+      middlewares:
+        - cors-api
+        - strip-raffles
+      priority: 240
+
     frontend-file:
       rule: "PathPrefix(`/`)"
       entryPoints:
@@ -88,6 +107,10 @@ http:
       priority: 1
 
   middlewares:
+    hide-public-metrics:
+      replacePath:
+        path: /__metrics_not_public__
+
     cors-api:
       headers:
         accessControlAllowCredentials: true
@@ -149,6 +172,11 @@ http:
         prefixes:
           - /api/payments
 
+    strip-raffles:
+      stripPrefix:
+        prefixes:
+          - /api/raffles
+
   services:
     auth-svc:
       loadBalancer:
@@ -184,6 +212,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://payments-service:8000"
+
+    raffles-svc:
+      loadBalancer:
+        servers:
+          - url: "http://raffles-service:8000"
 
     frontend-svc:
       loadBalancer:

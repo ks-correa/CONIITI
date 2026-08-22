@@ -246,3 +246,12 @@
         justify-content: flex-start;
     }
 }
+.error {
+    max-width: 1200px;
+    margin: 1rem auto;
+    padding: 0.85rem 1rem;
+    border: 1px solid rgba(220, 38, 38, 0.25);
+    border-radius: 10px;
+    background: rgba(254, 226, 226, 0.75);
+    color: #991b1b;
+}

@@ -80,7 +80,7 @@ async def exchange_microsoft_code(code: str, redirect_uri: str | None = None) ->
             )
             user_response.raise_for_status()
             user_data = user_response.json()
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="No fue posible completar la autenticacion con Microsoft.",
@@ -114,11 +114,17 @@ async def exchange_google_code(code: str, redirect_uri: str | None = None) -> di
             )
             user_response.raise_for_status()
             user_data = user_response.json()
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="No fue posible completar la autenticacion con Google.",
         ) from exc
+
+    if not isinstance(user_data, dict) or user_data.get("verified_email") is not True:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google no confirmo que el correo de la cuenta este verificado.",
+        )
 
     return {
         "email": (user_data.get("email") or "").strip().lower(),

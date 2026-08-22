@@ -1,35 +1,78 @@
 import { useState, useEffect, useCallback } from 'react';
-import { FiPlus, FiEdit2, FiTrash2, FiUser, FiCheckCircle, FiXCircle, FiCalendar, FiUsers, FiSliders } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiUser, FiCheckCircle, FiXCircle, FiCalendar, FiUsers, FiSliders, FiGrid, FiAward, FiBookOpen } from 'react-icons/fi';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { listStaff, createStaff, updateStaff, deleteStaff } from '../services/userService';
 import StaffFormModal from '../components/StaffFormModal';
 import StaffDashboard from './StaffDashboard';
-import GuestCountryPanel from '../components/admin/GuestCountryPanel';
+import SiteSettingsPanel from '../components/admin/SiteSettingsPanel';
+import UserAdminPanel from '../components/admin/UserAdminPanel';
+import CommitteeManager from '../components/admin/CommitteeManager';
+import GroupManager from '../components/admin/GroupManager';
+import RaffleManager from '../components/admin/RaffleManager';
 import styles from '../styles/pages/SuperuserDashboard.module.css';
 
 export default function SuperuserDashboard() {
-    const [activeTab, setActiveTab] = useState('admin');
+    const location = useLocation();
+    const navigate = useNavigate();
+    const requestedSegment = location.pathname.split('/')[2] || 'admin';
+    const requestedTab = requestedSegment === 'sorteos' ? 'raffles' : requestedSegment;
+    const activeTab = ['admin', 'customization', 'users', 'groups', 'committee', 'raffles', 'staff'].includes(requestedTab)
+        ? requestedTab
+        : 'admin';
+    const selectTab = (tab) => {
+        if (tab === 'admin') navigate('/superusuario');
+        else navigate(`/superusuario/${tab === 'raffles' ? 'sorteos' : tab}`);
+    };
 
     return (
         <div>
             <div className={styles.tabs}>
                 <button
                     className={`${styles.tab} ${activeTab === 'admin' ? styles.tabActive : ''}`}
-                    onClick={() => setActiveTab('admin')}
+                    onClick={() => selectTab('admin')}
                 >
                     <FiCalendar style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Operación general
                 </button>
                 <button
                     className={`${styles.tab} ${activeTab === 'customization' ? styles.tabActive : ''}`}
-                    onClick={() => setActiveTab('customization')}
+                    onClick={() => selectTab('customization')}
                 >
                     <FiSliders style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                    Pais invitado
+                    Personalización
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'users' ? styles.tabActive : ''}`}
+                    onClick={() => selectTab('users')}
+                >
+                    <FiUser style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                    Usuarios
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'groups' ? styles.tabActive : ''}`}
+                    onClick={() => selectTab('groups')}
+                >
+                    <FiGrid style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                    Grupos
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'committee' ? styles.tabActive : ''}`}
+                    onClick={() => selectTab('committee')}
+                >
+                    <FiBookOpen style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                    Comité
+                </button>
+                <button
+                    className={`${styles.tab} ${activeTab === 'raffles' ? styles.tabActive : ''}`}
+                    onClick={() => selectTab('raffles')}
+                >
+                    <FiAward style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                    Sorteos
                 </button>
                 <button
                     className={`${styles.tab} ${activeTab === 'staff' ? styles.tabActive : ''}`}
-                    onClick={() => setActiveTab('staff')}
+                    onClick={() => selectTab('staff')}
                 >
                     <FiUsers style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Equipo de apoyo
@@ -37,7 +80,15 @@ export default function SuperuserDashboard() {
             </div>
 
             {activeTab === 'admin' && <StaffDashboard />}
-            {activeTab === 'customization' && <GuestCountryPanel />}
+            {activeTab === 'customization' && (
+                <div className={styles.panelStack}>
+                    <SiteSettingsPanel />
+                </div>
+            )}
+            {activeTab === 'users' && <UserAdminPanel />}
+            {activeTab === 'groups' && <GroupManager />}
+            {activeTab === 'committee' && <CommitteeManager />}
+            {activeTab === 'raffles' && <RaffleManager />}
             {activeTab === 'staff' && <StaffPanel />}
         </div>
     );

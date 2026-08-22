@@ -39,10 +39,15 @@ def test_session_create_requires_track():
         SessionCreate(**payload)
 
 
-def test_session_create_rejects_day_outside_conference_range():
+def test_session_schema_accepts_any_valid_date_for_service_level_calendar_validation():
     payload = base_payload()
     payload["dia"] = "2026-10-05"
+    assert SessionCreate(**payload).dia == "2026-10-05"
 
+
+def test_session_create_rejects_invalid_calendar_date():
+    payload = base_payload()
+    payload["dia"] = "2026-02-30"
     with pytest.raises(ValidationError):
         SessionCreate(**payload)
 

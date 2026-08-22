@@ -1,0 +1,142 @@
+.section {
+    display: grid;
+    gap: 1.25rem;
+    color: var(--color-text, #26374a);
+}
+
+.header,
+.toolbar,
+.actions,
+.pagination,
+.inlineForm {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.header { justify-content: space-between; }
+.header h2, .header h1 { color: var(--color-primary-dark, #0d2b4e); margin: 0; }
+.header p { margin: 0.25rem 0 0; color: #68788a; }
+
+.card {
+    background: #fff;
+    border: 1px solid rgba(31, 105, 182, 0.12);
+    border-radius: 14px;
+    padding: 1.1rem;
+    box-shadow: 0 4px 20px rgba(9, 29, 54, 0.06);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+}
+
+.field { display: grid; gap: 0.35rem; }
+.field label { font-size: 0.82rem; font-weight: 700; color: #38516c; }
+.field input, .field select, .field textarea,
+.toolbar input, .toolbar select, .inlineForm input, .inlineForm select {
+    min-height: 42px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid #ccd7e2;
+    border-radius: 8px;
+    background: #fff;
+    color: #213448;
+    font: inherit;
+}
+.field textarea { min-height: 100px; resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus,
+.toolbar input:focus, .toolbar select:focus, .inlineForm input:focus {
+    outline: 3px solid rgba(31, 105, 182, 0.15);
+    border-color: var(--color-primary, #1f69b6);
+}
+.field input:disabled { background: #f2f5f8; color: #617184; }
+
+.primaryButton, .secondaryButton, .dangerButton, .smallButton, .iconButton {
+    border: 0;
+    border-radius: 8px;
+    padding: 0.65rem 0.9rem;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+.primaryButton { background: var(--color-primary, #1f69b6); color: #fff; }
+.secondaryButton, .smallButton { background: #eaf1f8; color: #174d83; }
+.dangerButton { background: #fee9e8; color: #a92d27; }
+.iconButton { background: transparent; color: #40566e; padding: 0.4rem; }
+.primaryButton:disabled, .secondaryButton:disabled, .dangerButton:disabled { opacity: 0.55; cursor: wait; }
+
+.tableWrapper { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.table th, .table td { padding: 0.75rem; border-bottom: 1px solid #e7edf3; text-align: left; vertical-align: top; }
+.table th { font-size: 0.78rem; color: #53677c; text-transform: uppercase; letter-spacing: 0.03em; }
+.muted { color: #718093; font-size: 0.85rem; }
+.inactive { opacity: 0.58; }
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    background: #e9f5ed;
+    color: #267242;
+    font-size: 0.74rem;
+    font-weight: 800;
+}
+.badgeMuted { background: #edf0f3; color: #607080; }
+.badgeAdmin { background: #fff3ce; color: #7c5700; }
+
+.error, .success {
+    padding: 0.8rem 1rem;
+    border-radius: 9px;
+    margin: 0;
+}
+.error { color: #9d2f2a; background: #fff0ef; border: 1px solid #f2c0bd; }
+.success { color: #246a3d; background: #edf9f1; border: 1px solid #b9e1c6; }
+.empty { padding: 2rem; text-align: center; color: #718093; }
+.pagination { justify-content: flex-end; }
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    background: rgba(5, 22, 40, 0.62);
+}
+.modal {
+    width: min(760px, 100%);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 16px;
+    padding: 1.25rem;
+}
+.modalHeader { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.modalHeader h3 { margin: 0; color: var(--color-primary-dark, #0d2b4e); }
+
+.split {
+    display: grid;
+    grid-template-columns: minmax(230px, 0.75fr) minmax(0, 1.5fr);
+    gap: 1rem;
+}
+.list { display: grid; gap: 0.5rem; }
+.listButton {
+    width: 100%;
+    text-align: left;
+    padding: 0.8rem;
+    border: 1px solid #dce5ee;
+    border-radius: 9px;
+    background: #fff;
+    cursor: pointer;
+}
+.listButtonActive { border-color: #1f69b6; background: #edf6ff; }
+.audit { max-height: 260px; overflow: auto; font-size: 0.82rem; }
+
+@media (max-width: 760px) {
+    .split { grid-template-columns: 1fr; }
+    .header { align-items: flex-start; }
+    .toolbar > * { width: 100%; }
+}

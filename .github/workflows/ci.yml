@@ -57,6 +57,7 @@ jobs:
           - payments-service
           - analytics-service
           - files-service
+          - raffles-service
     defaults:
       run:
         working-directory: ./microservices/${{ matrix.service }}
@@ -99,6 +100,63 @@ jobs:
       - name: Ruff check
         run: ruff check microservices
 
+  migrations:
+    name: Alembic upgrade, drift and rollback
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coniiti_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d coniiti_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - auth-service
+          - users-service
+          - agenda-service
+          - files-service
+          - raffles-service
+    defaults:
+      run:
+        working-directory: ./microservices/${{ matrix.service }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Exercise migration lifecycle
+        shell: bash
+        run: |
+          DB_URL="postgresql://postgres:postgres@localhost:5432/coniiti_test"
+          if [ "${{ matrix.service }}" = "files-service" ]; then
+            export FILES_DATABASE_URL="$DB_URL"
+          else
+            export DATABASE_URL="$DB_URL"
+          fi
+          alembic upgrade head
+          alembic check
+          alembic downgrade base
+          alembic upgrade head
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-latest
@@ -115,6 +173,7 @@ jobs:
           docker build -t payments-service:ci ./microservices/payments-service
           docker build -t analytics-service:ci ./microservices/analytics-service
           docker build -t files-service:ci ./microservices/files-service
+          docker build -t raffles-service:ci ./microservices/raffles-service
           docker build -t frontend-app:ci ./Front-end
 
   manifests:
@@ -126,6 +185,24 @@ jobs:
 
       - name: Validate docker compose
         run: docker compose config --quiet
+
+      - name: Validate deployment scripts
+        run: bash -n scripts/minikube-local.sh
+
+      - name: Validate PowerShell deployment script
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "scripts/minikube-local.ps1"),
+            [ref]$tokens,
+            [ref]$errors
+          )
+          if ($errors.Count) {
+            $errors | Format-List
+            throw "El script PowerShell de Minikube tiene errores de sintaxis."
+          }
 
       - name: Validate Kubernetes YAML syntax
         run: |
@@ -144,4 +221,23 @@ jobs:
               if not any(docs):
                   raise SystemExit(f"{path} no contiene recursos YAML")
           print("Kubernetes YAML OK")
+          PY
+
+      - name: Validate observability configuration
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v2.51.0 \
+            check config /etc/prometheus/prometheus.yml
+          docker run --rm --entrypoint amtool \
+            -v "$PWD/alertmanager:/etc/alertmanager:ro" \
+            prom/alertmanager:v0.27.0 \
+            check-config /etc/alertmanager/alertmanager.yml
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path("grafana").rglob("*.json"):
+              json.loads(path.read_text(encoding="utf-8"))
+          print("Grafana JSON OK")
           PY

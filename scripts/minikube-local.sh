@@ -53,7 +53,10 @@ read_local_env() {
         [RABBITMQ_EXCHANGE]="coniiti_events"
         [JWT_SECRET_KEY]="local-dev-jwt-secret-change-me-32-chars"
         [INTERNAL_SERVICE_TOKEN]="local-dev-internal-token"
-        [FRONTEND_URL]="http://localhost"
+        [ATTENDANCE_SIGNING_KEY]="local-dev-attendance-signing-key-change-me"
+        [GRAFANA_ADMIN_USER]="coniiti-admin"
+        [GRAFANA_ADMIN_PASSWORD]="local-dev-grafana-password-change-me"
+        [FRONTEND_URL]="http://127.0.0.1:8080"
         [SMTP_HOST]="smtp.example.local"
         [SMTP_PORT]="587"
         [SMTP_USER]=""
@@ -61,13 +64,13 @@ read_local_env() {
         [EMAIL_FROM_NAME]="CONIITI"
         [GOOGLE_CLIENT_ID]=""
         [GOOGLE_CLIENT_SECRET]=""
-        [GOOGLE_REDIRECT_URI]="http://localhost/api/auth/oauth/google/callback"
+        [GOOGLE_REDIRECT_URI]="http://127.0.0.1:8080/api/auth/oauth/google/callback"
         [MICROSOFT_TENANT_ID]="common"
         [MICROSOFT_CLIENT_ID]=""
         [MICROSOFT_CLIENT_SECRET]=""
-        [MICROSOFT_REDIRECT_URI]="http://localhost/api/auth/oauth/microsoft/callback"
+        [MICROSOFT_REDIRECT_URI]="http://127.0.0.1:8080/api/auth/oauth/microsoft/callback"
         [PAYMENT_PROVIDER_MODE]="mock"
-        [PUBLIC_APP_URL]="http://localhost"
+        [PUBLIC_APP_URL]="http://127.0.0.1:8080"
         [PAYPAL_CLIENT_ID]=""
         [PAYPAL_CLIENT_SECRET]=""
         [MP_ACCESS_TOKEN]=""
@@ -158,6 +161,7 @@ build_local_images() {
         "payments-service:latest|./microservices/payments-service"
         "analytics-service:latest|./microservices/analytics-service"
         "files-service:latest|./microservices/files-service"
+        "raffles-service:latest|./microservices/raffles-service"
         "frontend-app:latest|./Front-end"
     )
 
@@ -170,17 +174,15 @@ build_local_images() {
 }
 
 recreate_secret() {
-    name=$1
+    local name=$1
     shift
     kubectl delete secret "$name" --ignore-not-found --wait=false &>/dev/null || true
-    
-    cmd="kubectl create secret generic $name"
+
+    local args=(create secret generic "$name")
     for literal in "$@"; do
-        # Properly escape single quotes
-        escaped_literal=$(echo "$literal" | sed "s/'/'\\\\''/g")
-        cmd="$cmd --from-literal='$escaped_literal'"
+        args+=("--from-literal=$literal")
     done
-    eval "$cmd" &>/dev/null
+    kubectl "${args[@]}" &>/dev/null
 }
 
 new_kubernetes_secrets() {
@@ -206,6 +208,7 @@ new_kubernetes_secrets() {
         "DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/authdb" \
         "JWT_SECRET_KEY=$JWT_SECRET_KEY" \
         "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
+        "FRONTEND_URL=$FRONTEND_URL" \
         "RABBITMQ_PASS=$rabbitPass" \
         "SMTP_HOST=$SMTP_HOST" \
         "SMTP_PORT=$SMTP_PORT" \
@@ -228,15 +231,19 @@ new_kubernetes_secrets() {
     recreate_secret "agenda-service-secret" \
         "DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/agenda_db" \
         "JWT_SECRET_KEY=$JWT_SECRET_KEY" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
+        "ATTENDANCE_SIGNING_KEY=$ATTENDANCE_SIGNING_KEY" \
         "RABBITMQ_PASS=$rabbitPass"
 
     recreate_secret "notifications-service-secret" \
         "DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/notificationsdb" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
         "RABBITMQ_PASS=$rabbitPass"
 
     recreate_secret "payments-service-secret" \
         "PAYMENTS_DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/paymentsdb" \
         "JWT_SECRET_KEY=$JWT_SECRET_KEY" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
         "PAYMENT_PROVIDER_MODE=$PAYMENT_PROVIDER_MODE" \
         "PUBLIC_APP_URL=$PUBLIC_APP_URL" \
         "PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID" \
@@ -244,17 +251,48 @@ new_kubernetes_secrets() {
         "MP_ACCESS_TOKEN=$MP_ACCESS_TOKEN"
 
     recreate_secret "files-service-secret" \
-        "JWT_SECRET_KEY=$JWT_SECRET_KEY"
+        "FILES_DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/filesdb" \
+        "JWT_SECRET_KEY=$JWT_SECRET_KEY" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN"
 
     recreate_secret "analytics-service-secret" \
         "MONGO_URI=mongodb://$mongoUser:$mongoPassword@analytics-mongo-service:27017/$mongoDb?authSource=admin" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
         "RABBITMQ_PASS=$rabbitPass"
+
+    recreate_secret "raffles-service-secret" \
+        "DATABASE_URL=postgresql://$postgresUser:$postgresPassword@shared-postgres-service:5432/rafflesdb" \
+        "JWT_SECRET_KEY=$JWT_SECRET_KEY" \
+        "INTERNAL_SERVICE_TOKEN=$INTERNAL_SERVICE_TOKEN" \
+        "RABBITMQ_PASS=$rabbitPass"
+
+    recreate_secret "grafana-admin-secret" \
+        "admin-user=$GRAFANA_ADMIN_USER" \
+        "admin-password=$GRAFANA_ADMIN_PASSWORD"
+}
+
+ensure_postgres_databases() {
+    local database_name
+    local database_names=(
+        usersdb authdb agenda_db notificationsdb paymentsdb filesdb rafflesdb
+    )
+
+    for database_name in "${database_names[@]}"; do
+        if ! kubectl exec deployment/shared-postgres -- \
+            psql -U "$POSTGRES_USER" -d default_db -tAc \
+            "SELECT 1 FROM pg_database WHERE datname='$database_name'" \
+            | grep -qx '1'; then
+            write_step "Creando base PostgreSQL faltante: $database_name"
+            kubectl exec deployment/shared-postgres -- \
+                createdb -U "$POSTGRES_USER" "$database_name"
+        fi
+    done
 }
 
 remove_legacy_resources() {
     require_cluster_ready
 
-    write_step "Eliminando recursos heredados del despliegue anterior"
+    write_step "Retirando workloads heredados; los PVC legacy se conservan para recuperación"
 
     legacyDeployments=(
         "agenda-db-deployment"
@@ -282,18 +320,6 @@ remove_legacy_resources() {
         kubectl delete service "$svc" --ignore-not-found --wait=false &>/dev/null || true
     done
 
-    legacyPvcs=(
-        "agenda-db-pvc"
-        "auth-db-pvc"
-        "users-db-pvc"
-        "notifications-db-pvc"
-        "payments-db-pvc"
-        "analytics-mongo-pvc"
-    )
-
-    for pvc in "${legacyPvcs[@]}"; do
-        kubectl delete pvc "$pvc" --ignore-not-found --wait=false &>/dev/null || true
-    done
 }
 
 deploy_local_cluster() {
@@ -312,11 +338,13 @@ deploy_local_cluster() {
 
     write_step "Esperando infraestructura"
     kubectl rollout status deployment/shared-postgres --timeout=180s
+    ensure_postgres_databases
     kubectl rollout status deployment/analytics-mongo --timeout=180s
     kubectl rollout status deployment/rabbitmq --timeout=180s
 
-    write_step "Aplicando microservicios e ingress"
+    write_step "Aplicando microservicios, observabilidad e ingress"
     kubectl apply -f "$ROOT/Kubernetes/microservicios/"
+    kubectl apply -f "$ROOT/Kubernetes/observabilidad/"
     kubectl apply -f "$ROOT/Kubernetes/ingress/"
 }
 
@@ -340,8 +368,12 @@ show_local_status() {
         "payments-service"
         "analytics-service"
         "files-service"
+        "raffles-service"
         "frontend-app"
         "traefik"
+        "alertmanager"
+        "prometheus"
+        "grafana"
     )
 
     for dep in "${deployments[@]}"; do
@@ -351,29 +383,38 @@ show_local_status() {
 
 open_local_app() {
     require_cluster_ready
+    read_local_env
 
     write_step "Exponiendo Traefik en localhost"
+
+    local frontend_url="${FRONTEND_URL:-http://127.0.0.1:8080}"
+    if [[ ! "$frontend_url" =~ ^http://(127\.0\.0\.1|localhost)(:([0-9]{1,5}))?(/.*)?$ ]]; then
+        echo -e "\e[31mError: FRONTEND_URL debe usar http://127.0.0.1:<puerto> o http://localhost:<puerto> en Minikube local.\e[0m" >&2
+        exit 1
+    fi
+
+    local port="${BASH_REMATCH[3]:-80}"
+    if (( port < 1 || port > 65535 )); then
+        echo -e "\e[31mError: FRONTEND_URL contiene un puerto fuera de rango.\e[0m" >&2
+        exit 1
+    fi
 
     state=$(get_active_port_forward)
     if [ -n "$state" ]; then
         pid=$(echo "$state" | cut -d'|' -f1)
         p_port=$(echo "$state" | cut -d'|' -f2)
+        if [ "$p_port" != "$port" ]; then
+            echo -e "\e[31mError: Hay un port-forward en $p_port, pero FRONTEND_URL usa $port. Ejecuta stop-forward y vuelve a abrir.\e[0m" >&2
+            exit 1
+        fi
         write_step "Port-forward activo en PID $pid."
         echo "Frontend: http://127.0.0.1:$p_port"
         echo "Estado:   http://127.0.0.1:$p_port/estado"
         return
     fi
 
-    port=""
-    for candidate in {8080..8089}; do
-        if ! is_port_in_use "$candidate"; then
-            port="$candidate"
-            break
-        fi
-    done
-
-    if [ -z "$port" ]; then
-        echo -e "\e[31mError: No hay puertos libres entre 8080 y 8089 para exponer Traefik.\e[0m" >&2
+    if is_port_in_use "$port"; then
+        echo -e "\e[31mError: El puerto $port definido por FRONTEND_URL esta ocupado. Liberalo o configura el mismo puerto en FRONTEND_URL, PUBLIC_APP_URL y los callbacks OAuth.\e[0m" >&2
         exit 1
     fi
 
@@ -403,6 +444,7 @@ clean_local_cluster() {
 
     write_step "Eliminando recursos CONIITI del clúster local"
     kubectl delete -f "$ROOT/Kubernetes/ingress/" --ignore-not-found --wait=false &>/dev/null || true
+    kubectl delete -f "$ROOT/Kubernetes/observabilidad/" --ignore-not-found --wait=false &>/dev/null || true
     kubectl delete -f "$ROOT/Kubernetes/microservicios/" --ignore-not-found --wait=false &>/dev/null || true
     kubectl delete -f "$ROOT/Kubernetes/mensajeria/" --ignore-not-found --wait=false &>/dev/null || true
     kubectl delete -f "$ROOT/Kubernetes/base-datos/" --ignore-not-found --wait=false &>/dev/null || true
@@ -428,7 +470,6 @@ case "$ACTION" in
     reset) reset_local_cluster ;;
     all)
         start_local_minikube
-        reset_local_cluster
         build_local_images
         deploy_local_cluster
         show_local_status

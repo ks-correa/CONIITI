@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+import secrets
 from urllib.parse import urlencode
 
 from fastapi import HTTPException, Request, Response, status
@@ -29,9 +30,6 @@ from app.utils.jwt import (
 from app.services import auth_service, otp_service
 from app.clients import email_service, oauth_service, users_client
 from app.messaging import event_service
-
-
-FRONTEND_ORIGIN_COOKIE = "frontend_origin"
 
 
 @dataclass(frozen=True)
@@ -75,34 +73,11 @@ def _get_oauth_provider(provider: str) -> OAuthProviderDefinition:
         raise ValueError(f"Proveedor OAuth no soportado: {provider}") from exc
 
 
-def get_requested_frontend_origin(request: Request) -> str:
-    origin = request.headers.get("origin", "").strip()
-    if origin:
-        return origin.rstrip("/")
-
-    referer = request.headers.get("referer", "").strip()
-    if referer.startswith("http://") or referer.startswith("https://"):
-        parts = referer.split("/", 3)
-        if len(parts) >= 3:
-            return f"{parts[0]}//{parts[2]}".rstrip("/")
-
-    return settings.FRONTEND_URL.rstrip("/")
-
-
-def build_oauth_redirect_uri(request: Request, provider: str) -> str:
+def build_oauth_redirect_uri(_request: Request, provider: str) -> str:
     provider_config = _get_oauth_provider(provider)
-    forwarded_prefix = request.headers.get("x-forwarded-prefix", "").split(",", 1)[0].strip()
-    if not forwarded_prefix:
-        return provider_config.default_redirect_uri
-
-    if not forwarded_prefix.startswith("/"):
-        forwarded_prefix = f"/{forwarded_prefix}"
-
-    forwarded_prefix = forwarded_prefix.rstrip("/")
-    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",", 1)[0].strip()
-    forwarded_host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
-    host = forwarded_host.split(",", 1)[0].strip()
-    return f"{forwarded_proto}://{host}{forwarded_prefix}/oauth/{provider}/callback"
+    # Redirect URIs must be registered with the provider and are therefore
+    # configuration, not values inferred from Host/X-Forwarded-* headers.
+    return provider_config.default_redirect_uri
 
 
 def _build_frontend_url(path: str, **params: str) -> str:
@@ -115,12 +90,10 @@ def _build_frontend_url(path: str, **params: str) -> str:
 
 
 def _build_frontend_url_from_request(request: Request, path: str, **params: str) -> str:
-    query = urlencode({key: value for key, value in params.items() if value})
-    base = request.cookies.get(FRONTEND_ORIGIN_COOKIE, settings.FRONTEND_URL).rstrip("/")
-    normalized_path = "/" + path.lstrip("/")
-    if query:
-        return f"{base}{normalized_path}?{query}"
-    return f"{base}{normalized_path}"
+    # OAuth redirects always return to the configured canonical frontend.
+    # Origin/Referer and client-controlled cookies are intentionally ignored
+    # to avoid turning the callback into an open redirect.
+    return _build_frontend_url(path, **params)
 
 
 def _build_oauth_error_redirect(request: Request, message: str) -> RedirectResponse:
@@ -129,7 +102,6 @@ def _build_oauth_error_redirect(request: Request, message: str) -> RedirectRespo
         status_code=status.HTTP_302_FOUND,
     )
     clear_oauth_state_cookie(response)
-    response.delete_cookie(key=FRONTEND_ORIGIN_COOKIE, path="/")
     return response
 
 
@@ -150,7 +122,7 @@ def _rollback_oauth_user(email: str, created: bool, db: Session) -> None:
 
 def _validate_oauth_state(request: Request, state: str) -> None:
     cookie_state = request.cookies.get("oauth_state")
-    if not cookie_state or cookie_state != state:
+    if not cookie_state or not secrets.compare_digest(cookie_state, state):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Estado OAuth invalido o expirado.",
@@ -368,6 +340,13 @@ def get_authenticated_user_response(current_user) -> AuthenticatedUserResponse:
         full_name=profile["full_name"],
         role=_normalized_role(profile),
         institution=profile.get("institution"),
+        first_name=profile.get("first_name"),
+        last_name=profile.get("last_name"),
+        career=profile.get("career"),
+        gender=profile.get("gender"),
+        document=profile.get("document"),
+        institutional_code=profile.get("institutional_code"),
+        profile_completed=bool(profile.get("profile_completed")),
         is_verified=current_user.is_verified,
         is_active=current_user.is_active,
     )
@@ -411,14 +390,6 @@ def begin_oauth_login(request: Request, provider: str) -> RedirectResponse:
         status_code=status.HTTP_302_FOUND,
     )
     set_oauth_state_cookie(response, state)
-    response.set_cookie(
-        key=FRONTEND_ORIGIN_COOKIE,
-        value=get_requested_frontend_origin(request),
-        httponly=True,
-        secure=settings.ENVIRONMENT == "production",
-        samesite="lax",
-        path="/",
-    )
     return response
 
 
@@ -481,7 +452,6 @@ async def complete_oauth_callback(
         )
         set_access_cookie(response, token)
         clear_oauth_state_cookie(response)
-        response.delete_cookie(key=FRONTEND_ORIGIN_COOKIE, path="/")
         return response
     except event_service.EventPublishError:
         _rollback_oauth_user(user_info.get("email", ""), created, db)

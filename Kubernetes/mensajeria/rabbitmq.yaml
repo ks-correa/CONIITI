@@ -1,3 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rabbitmq-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -35,6 +46,27 @@ spec:
             secretKeyRef:
               name: rabbitmq-secret
               key: RABBITMQ_PASS
+        volumeMounts:
+        - name: rabbitmq-data
+          mountPath: /var/lib/rabbitmq
+        startupProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_running"]
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_running"]
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command: ["rabbitmq-diagnostics", "-q", "check_running"]
+          periodSeconds: 15
+          failureThreshold: 5
+      volumes:
+      - name: rabbitmq-data
+        persistentVolumeClaim:
+          claimName: rabbitmq-data-pvc
 ---
 apiVersion: v1
 kind: Service

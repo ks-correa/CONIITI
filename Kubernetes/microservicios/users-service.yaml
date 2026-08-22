@@ -4,7 +4,8 @@ metadata:
   name: users-service-config
 data:
   AUTH_SERVICE_URL: "http://auth-service"
-  ENVIRONMENT: "development"
+  AUTH_INTROSPECTION_ENABLED: "true"
+  ENVIRONMENT: "production"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -26,7 +27,7 @@ spec:
       - name: users-service
         image: users-service:latest
         imagePullPolicy: IfNotPresent
-        command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+        command: ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
         resources:
           requests:
             memory: "64Mi"
@@ -47,6 +48,12 @@ spec:
             port: 8000
           initialDelaySeconds: 20
           periodSeconds: 15
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 5
+          failureThreshold: 30
         readinessProbe:
           httpGet:
             path: /health

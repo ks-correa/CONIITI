@@ -67,7 +67,7 @@ export default function Estado() {
             
             <section className={styles.summaryBand}>
                 <div>
-                    <strong>{summary.healthy}/{summary.total || 7}</strong>
+                    <strong>{summary.healthy}/{summary.total || 8}</strong>
                     <span>servicios disponibles</span>
                 </div>
                 <div>

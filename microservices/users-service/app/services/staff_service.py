@@ -25,7 +25,13 @@ def _staff_profile_payload(user: StaffCreateRequest, user_id: str) -> ProfileCre
         full_name=user.full_name,
         email=user.email,
         role=user.role,
+        first_name=user.first_name,
+        last_name=user.last_name,
         institution=user.institution,
+        career=user.career,
+        gender=user.gender,
+        document=user.document,
+        institutional_code=user.institutional_code,
         is_active=user.is_active,
     )
 
@@ -76,6 +82,8 @@ def update_staff_account(user_id: str, user_data: StaffUpdateRequest, db: Sessio
     user = profile_service.get_user_or_404(user_id, db)
     if user.role != "staff":
         raise HTTPException(status_code=404, detail="Cuenta staff no encontrada.")
+    if user_data.role is not None and user_data.role != "staff":
+        raise HTTPException(status_code=422, detail="El endpoint de staff no permite cambiar el rol.")
 
     auth_payload = _staff_auth_update_payload(user_data)
     if auth_payload:
@@ -95,8 +103,6 @@ def delete_staff_account(user_id: str, db: Session) -> None:
     if user.role != "staff":
         raise HTTPException(status_code=404, detail="Cuenta staff no encontrada.")
 
-    profile_service.delete_profile_record(user, db)
-
     try:
         auth_client.delete_auth_account(user_id)
     except httpx.HTTPStatusError as exc:
@@ -104,3 +110,8 @@ def delete_staff_account(user_id: str, db: Session) -> None:
         raise HTTPException(status_code=exc.response.status_code, detail=detail) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=503, detail="auth-service no esta disponible.") from exc
+
+    # The credential is removed before deleting the profile. If this commit
+    # fails, the harmless orphan profile can be reconciled; no live credential
+    # remains with stale privileges.
+    profile_service.delete_profile_record(user, db)

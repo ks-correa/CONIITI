@@ -10,7 +10,9 @@ export default function AgendaGrid({
     registeredIds = new Set(),
     onToggleRegister,
     mode = 'agenda',
+    columns = 3,
 }) {
+    const safeColumns = Math.min(4, Math.max(1, Number(columns) || 3));
     if (isLoading) {
         return (
             <div className={styles.loadingWrapper}>
@@ -40,7 +42,7 @@ export default function AgendaGrid({
                 {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'}
             </div>
 
-            <div className={styles.grid}>
+            <div className={styles.grid} style={{ '--agenda-columns': safeColumns }}>
                 {[...sessions]
                     .sort((left, right) => {
                         if (left.hora_inicio < right.hora_inicio) return -1;
